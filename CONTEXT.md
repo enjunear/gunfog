@@ -28,3 +28,6 @@ A sentence the report singles out, by contribution, as driving the document's fo
 
 **Target**:
 The fog score threshold (default 10) that sets hotspot flagging and the exit code.
+
+**Floor**:
+The minimum prose length (100 words, exact) a document needs to receive a fog score. Under the floor gunfog reports no score and the run fails, though complex words are still named.
