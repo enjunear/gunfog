@@ -17,7 +17,7 @@ Flags:
 - `--target N` (default 10): the fog score threshold that sets hotspot flagging and the exit code.
 - `--limit N` (default 10): maximum hotspot lines. `--limit 0` means score only: the first output line and nothing else.
 
-Exit codes: 0 when the document scores at or under target; 1 when it scores over target **or** is too short to score (the first output line disambiguates).
+Exit codes follow grep and diff: 0 when the document scores at or under target; 1 when it scores over target **or** is too short to score (the first output line disambiguates); 2 when gunfog could not score at all, which covers a bad invocation and an input it could not read. So 1 always means a document was read and judged, and a caller branching on the exit code alone never mistakes a typo'd path for foggy prose. A 2 prints its reason to stderr and no stdout line at all.
 
 Output is compact plain text. No JSON, no colour, no decoration.
 
@@ -147,12 +147,20 @@ inherits = "release"
 
 ### GitLab CI (dev loop)
 
-Single stage on every push, official `rust:<pinned version>` image, four jobs, no caching:
+Single stage on every push, official `rust:<pinned version>-slim` image, four jobs, no caching:
 
-1. `cargo fmt --check`
-2. `cargo clippy --all-targets -- -D warnings` (does not lint doc-tests, so:)
-3. `cargo test` — bare, no target filter, to keep doc-tests running
-4. `cargo build --profile dist` then the size guard: `test "$(wc -c < target/dist/gunfog)" -le 2097152`
+1. `cargo fmt --check` (the only one of the four that takes no `--locked`)
+2. `cargo clippy --all-targets --locked -- -D warnings` (does not lint doc-tests, so:)
+3. `cargo test --locked` — bare, no target filter, to keep doc-tests running
+4. `cargo build --profile dist --locked` then the size guard: `test "$(wc -c < target/dist/gunfog)" -le 2097152`
+
+The image tag names the patch version, so it stays in lockstep with the
+`rust-toolchain.toml` channel and `rust-version`; bump all three together. The
+slim variant ships no `git`, which is safe because the runner's helper image
+does the clone and no job here touches git.
+
+A three-line `workflow:` block stops a branch pipeline and a merge request
+pipeline both firing once merge request pipelines exist.
 
 Release CI is separate: cargo-dist-generated GitHub Actions on the mirror (below).
 

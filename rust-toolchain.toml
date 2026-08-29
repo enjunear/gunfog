@@ -1,0 +1,5 @@
+# Keep in lockstep with `rust-version` in Cargo.toml and the CI image tag in
+# .gitlab-ci.yml. A mismatch costs ~31.5 s per job re-downloading a toolchain.
+[toolchain]
+channel = "1.98.0"
+components = ["clippy", "rustfmt"]

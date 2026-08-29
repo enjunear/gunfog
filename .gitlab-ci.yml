@@ -1,0 +1,50 @@
+# Slim, because the pipeline pulls no cache and the full image is 1.65 GB
+# against 905 MB. Slim ships no git; the docker executor clones with the
+# gitlab-runner helper image, and none of these jobs touch git themselves.
+#
+# The image tag, `channel` in rust-toolchain.toml and `rust-version` in
+# Cargo.toml move together, and the tag names the patch version for that reason.
+# A toolchain mismatch costs ~31.5 s per job re-downloading a full toolchain.
+# The official image ships neither clippy nor rustfmt. rust-toolchain.toml pulls
+# both in on the first cargo call, in about 0.9 s.
+image: rust:1.98.0-slim
+
+# No cache. The whole pipeline runs in about ten seconds and the target/ tree it
+# would carry is ~139 MB. See docs/research/rust-project-conventions.md §E.
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
+stages:
+  - check
+
+fmt:
+  stage: check
+  script:
+    - cargo fmt --check
+
+clippy:
+  stage: check
+  script:
+    - cargo clippy --all-targets --locked -- -D warnings
+
+test:
+  stage: check
+  # Bare and unfiltered. `clippy --all-targets` does not lint doc-tests, and for
+  # a lib plus thin bin the doc examples are the only check that the documented
+  # usage still compiles. Do not narrow this to --lib.
+  script:
+    - cargo test --locked
+
+dist-size:
+  stage: check
+  # The dist profile, not release. That is the binary users download.
+  script:
+    - cargo build --profile dist --locked
+    - size=$(wc -c < target/dist/gunfog)
+    - echo "shipped binary $size bytes (budget 2097152)"
+    - test "$size" -le 2097152
