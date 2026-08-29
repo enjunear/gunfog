@@ -28,15 +28,19 @@ Read the gates from the repo, not from memory.
 `.gitlab-ci.yml` owns the dev-loop commands and `rust-toolchain.toml` owns the compiler version and components. 
 `grep -A5 'script:' .gitlab-ci.yml` and `cat rust-toolchain.toml`.
 
-The spec plans four jobs, one stage, every push, no cache:
+Four jobs, one stage, every push, no cache:
 
-- `cargo fmt --check`
-- `cargo clippy --all-targets -- -D warnings`. 
+- `cargo fmt --check`. 
+    The only one of the four that takes no `--locked`.
+- `cargo clippy --all-targets --locked -- -D warnings`. 
     Note `--all-targets` does not lint doc-tests.
-- `cargo test`, bare and unfiltered, because that is what compiles and runs the doc-tests clippy skipped. 
+- `cargo test --locked`, bare and unfiltered, because that is what compiles and runs the doc-tests clippy skipped. 
     Do not narrow it to `--lib` in CI. 
     Locally, a single test is `cargo test <substring>` and one integration file is `cargo test --test <file>`.
 - `cargo build --profile dist --locked` plus a size guard: `test "$(wc -c < target/dist/gunfog)" -le 2097152`.
+
+The image is `rust:<pinned version>-slim`, tagged to the patch version so it stays in lockstep with the `rust-toolchain.toml` channel and `rust-version`. 
+Bump all three in one commit; a mismatch costs about 31.5 s per job re-downloading a toolchain.
 
 Two traps measured in `docs/research/rust-project-conventions.md`:
 
