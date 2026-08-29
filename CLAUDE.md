@@ -15,7 +15,7 @@ No manifest means the repo is still planning documents, and the "commands" below
 - `CONTEXT.md` is the glossary and the authoritative vocabulary (prose, sentence, word, complex word, placeholder word, contribution, hotspot, target, floor). 
     Read it before writing code or docs that use those terms, and keep the terms out of any other meaning.
 - `SPEC.md` states what to build, without rationale. 
-    It may not be merged to `main`; find where it currently lives with `git log --all --oneline -- SPEC.md`, then `git show <branch>:SPEC.md`.
+    It sits at the repo root; if it is not there, `git log --all --oneline -- SPEC.md` names the branch carrying it and `git show <branch>:SPEC.md` reads it.
 - `docs/research/` holds the rationale and the measurements. `ls docs/research` for the current set. 
     Every note opens with a verdict section; read that before the body, and follow the sources at the end rather than trusting a summary.
 
