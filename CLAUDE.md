@@ -87,3 +87,17 @@ Write the ADR when implementation starts.
     Match it when adding one, and say when a claim rests on a secondary source.
 - Older notes call the tool `gfog` or `g-fog`; it was renamed (`docs/research/naming-collisions.md`). 
     Leave the historical text as written rather than rewriting past documents.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in this repo's GitLab project on git.enjunear.com, managed with `glab`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage labels, unrenamed: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` at the repo root, ADRs under `docs/adr/`. See `docs/agents/domain.md`.
