@@ -60,7 +60,7 @@ Tests call the library.
 The pipeline is markdown, then prose extraction, sentence segmentation, word tokenisation, syllable counting, complex-word classification, a document score, per-sentence contributions, and the report. 
 The parts that are easy to get wrong, each backed by a research note:
 
-- **The formula only ever sees prose.** Headings, fenced code, tables, image alt text and raw HTML are removed before scoring. 
+- **The formula only ever sees prose.** Headings, code blocks, tables, image alt text, raw HTML and task-list markers are removed before scoring. 
     Inline code spans and bare URLs become a one-word, one-syllable placeholder rather than disappearing, so the sentence keeps its length.
 - **Segmentation is the tool.** How a bulleted list is split into sentences moves the grade by about 3.9 on average, eight times the effect of the syllable counter and more than twice the spread between whole documents. 
     A list item's start and end are always boundaries. See `docs/research/fog-vs-flesch-kincaid.md`.
@@ -69,7 +69,7 @@ The parts that are easy to get wrong, each backed by a research note:
 - **Short input gets no score.** Below 100 prose words both formulas are noise, so the run refuses and exits 1 while still naming complex words.
 - **Syllables are rules, not a word list.** The 29-rule byte-comparison set in `docs/research/syllable-counting.md` §4. 
     The CMU-derived list is a deliberate 524 KB that is not shipped; adding it later as a first-check layer is purely additive.
-- `pulldown-cmark`'s `into_offset_iter()` yields byte offsets, so line numbers need a newline table built in the same pass.
+- `pulldown-cmark`'s `into_offset_iter()` yields byte offsets; prose extraction carries them through as source spans, and the report stage turns a span into a line number with a newline table.
 
 Calibration targets Gunning's own worked example and a hand-counted golden corpus, not agreement with textstat or the npm packages, which diverge from each other by up to 4.9 grades.
 

@@ -5,7 +5,7 @@ A CLI that scores prose with the Gunning fog index and reports hotspots so a cod
 ## Language
 
 **Prose**:
-The text that remains after the constructs gunfog never scores (headings, fenced code blocks, tables, image alt text, raw HTML) are removed. The fog formula only ever sees prose.
+The text that remains after the constructs gunfog never scores (headings, code blocks, tables, image alt text, raw HTML, task-list markers) are removed. The fog formula only ever sees prose.
 
 **Sentence**:
 The scoring unit. A span of prose bounded by UAX #29 sentence boundaries, paragraph ends, and hard breaks. A list item's start and end are always sentence boundaries, and normal segmentation applies inside the item.

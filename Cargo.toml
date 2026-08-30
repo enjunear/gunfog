@@ -9,6 +9,7 @@ repository = "https://github.com/enjunear/gunfog"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+pulldown-cmark = { version = "0.13.4", default-features = false }
 
 [profile.release]
 opt-level = "z"
