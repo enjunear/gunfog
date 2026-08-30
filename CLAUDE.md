@@ -69,7 +69,7 @@ The parts that are easy to get wrong, each backed by a research note:
 - **Short input gets no score.** Below 100 prose words both formulas are noise, so the run refuses and exits 1 while still naming complex words.
 - **Syllables are rules, not a word list.** The 29-rule byte-comparison set in `docs/research/syllable-counting.md` §4. 
     The CMU-derived list is a deliberate 524 KB that is not shipped; adding it later as a first-check layer is purely additive.
-- `pulldown-cmark`'s `into_offset_iter()` yields byte offsets; prose extraction carries them through as source spans, and the report stage turns a span into a line number with a newline table.
+- `pulldown-cmark`'s `into_offset_iter()` yields byte offsets; prose extraction carries them through as source spans, and segmentation turns each sentence's span into its line number with one forward newline scan.
 
 Calibration targets Gunning's own worked example and a hand-counted golden corpus, not agreement with textstat or the npm packages, which diverge from each other by up to 4.9 grades.
 
