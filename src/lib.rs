@@ -4,13 +4,14 @@
 //! score.
 //!
 //! Of the pipeline described in `SPEC.md`, markdown prose extraction
-//! ([`prose`]) and sentence segmentation with word tokenisation
-//! ([`segment`]) are built; syllable counting, scoring, hotspot attribution
-//! and report rendering are not. [`word_count`] is the stub the CLI
-//! skeleton runs against.
+//! ([`prose`]), sentence segmentation with word tokenisation ([`segment`]),
+//! and syllable counting with the complex-word rule ([`syllable`]) are
+//! built; scoring, hotspot attribution and report rendering are not.
+//! [`word_count`] is the stub the CLI skeleton runs against.
 
 pub mod prose;
 pub mod segment;
+pub mod syllable;
 
 /// Counts whitespace-separated tokens.
 ///
