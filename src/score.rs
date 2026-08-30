@@ -16,7 +16,7 @@ use crate::syllable::complex_words;
 
 /// The floor: the minimum prose length that receives a fog score, exact
 /// and fixed. Exactly 100 words scores; 99 refuses.
-const FLOOR: usize = 100;
+pub(crate) const FLOOR: usize = 100;
 
 /// The outcome of scoring a document: a fog score, or a refusal when the
 /// prose is under the floor.
@@ -262,7 +262,7 @@ fn fog(words: usize, sentences: usize, complex: usize) -> f64 {
 /// The score as the report prints it: rounded to one decimal.
 ///
 /// Author: Claude Fable 5
-fn printed(fog: f64) -> f64 {
+pub(crate) fn printed(fog: f64) -> f64 {
     (fog * 10.0).round() / 10.0
 }
 

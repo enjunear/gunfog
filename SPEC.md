@@ -78,7 +78,7 @@ A word excused by an exclusion never appears in a `complex:` list.
 
 Fog = `0.4 × (words / sentences + 100 × complex words / words)`, over the whole document's prose. The headline score prints at one decimal.
 
-Calibration anchor: Gunning's own worked example (this implementation scores it 11.0 against his published 10.9) plus a hand-counted golden corpus, kept as permanent tests. gunfog explicitly does not chase agreement with textstat or the npm packages, which mutually diverge by up to 4.9 grades.
+Calibration anchor: Gunning's own worked example (the formula on his hand counts scores 11.0 against his published 10.9; the full pipeline scores the passage 11.3, its rule-based counter reading `people` as three syllables) plus a hand-counted golden corpus, kept as permanent tests. gunfog explicitly does not chase agreement with textstat or the npm packages, which mutually diverge by up to 4.9 grades.
 
 ## Hotspots
 

@@ -7,7 +7,10 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::Parser;
-use gunfog::word_count;
+use gunfog::prose::extract;
+use gunfog::report::render;
+use gunfog::score::analyse;
+use gunfog::segment::sentences;
 
 /// Score prose with the Gunning fog index.
 #[derive(Parser)]
@@ -31,10 +34,19 @@ struct Cli {
 }
 
 /// Author: Claude Opus 5
+/// Author: Claude Fable 5
 fn main() -> ExitCode {
     let cli = Cli::parse();
     match run(&cli) {
-        Ok(()) => ExitCode::SUCCESS,
+        // 1, per the grep/diff convention: a document was read and judged
+        // over target or under the floor.
+        Ok(passes) => {
+            if passes {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
+        }
         Err(err) => {
             eprintln!("gunfog: {err}");
             // 2, not 1. A 1 means gunfog read a document and judged it; this
@@ -45,19 +57,28 @@ fn main() -> ExitCode {
     }
 }
 
-/// Reads the chosen input and prints a stub score line.
-///
-/// Scoring, hotspots and the real exit codes land with the pipeline.
+/// Runs the pipeline over the chosen input, prints the report, and returns
+/// the exit-code judgement.
 ///
 /// Author: Claude Opus 5
-fn run(cli: &Cli) -> std::io::Result<()> {
+/// Author: Claude Fable 5
+fn run(cli: &Cli) -> std::io::Result<bool> {
     let input = read_input(cli)?;
-    let words = word_count(&input);
-    println!(
-        "fog: 0.0 (target {}) [stub: {words} words, limit {}]",
-        cli.target, cli.limit
+    let found = sentences(&input, &extract(&input));
+    let analysis = analyse(&found, cli.target as f64, cli.limit);
+    // Line numbers are source lines, which only --file input can honour.
+    print!(
+        "{}",
+        render(
+            &input,
+            &found,
+            &analysis,
+            cli.target,
+            cli.limit,
+            cli.file.is_some()
+        )
     );
-    Ok(())
+    Ok(analysis.passes())
 }
 
 /// Resolves the one input for this call: inline argument, `--file`, or stdin.
