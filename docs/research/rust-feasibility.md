@@ -111,7 +111,10 @@ Dependencies are `bitflags`, `memchr` and `unicase`. Three transitive crates, no
 **Known gap.** Issue #441 (https://github.com/pulldown-cmark/pulldown-cmark/issues/441) reports
 that for links and images, `into_offset_iter()` gives the range of the whole tag rather than
 separate ranges for the URL, title and link text. Plain `Text` events inside emphasis still
-carry their own correct ranges. `gfog` walks `Text` events, so this does not affect it.
+carry their own correct ranges. `gfog` walks `Text` events, so this does not affect the
+text it scores. It does cost the extraction stage a link-text range:
+`prose::link_text_bounds` reconstructs one as the widest inner event range, so a
+bare-URL scan inside link text stops at the closing `]`.
 
 **Alternatives.** `comrak` v0.54.0 (2026-07-12, BSD-2-Clause) also reports source positions,
 with a `--sourcepos-chars` option for character rather than byte columns, but it builds a full

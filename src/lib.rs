@@ -3,10 +3,12 @@
 //! Scores prose with the Gunning fog index and names the sentences driving the
 //! score.
 //!
-//! The pipeline described in `SPEC.md` (markdown prose extraction, sentence
-//! segmentation, word tokenisation, syllable counting, scoring, hotspot
-//! attribution, report rendering) is not built yet. [`word_count`] is the stub
-//! the CLI skeleton runs against.
+//! Of the pipeline described in `SPEC.md`, only markdown prose extraction
+//! ([`prose`]) is built; sentence segmentation, word tokenisation, syllable
+//! counting, scoring, hotspot attribution and report rendering are not.
+//! [`word_count`] is the stub the CLI skeleton runs against.
+
+pub mod prose;
 
 /// Counts whitespace-separated tokens.
 ///

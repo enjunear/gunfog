@@ -30,18 +30,19 @@ The fog formula only ever sees prose: the text that remains after the following 
 Never scored:
 
 - Headings
-- Fenced code blocks
+- Code blocks, fenced or indented
 - Tables
 - Image alt text
-- Raw HTML, block and inline
+- Raw HTML, block and inline: the tags and comments, though the text an inline tag pair wraps still counts. An HTML block swallows everything up to the next blank line, so prose inside an unspaced `<div>` or `<details>` wrapper is removed with it; blank lines around the tags keep the prose scored
+- Task-list markers (`[x]`/`[ ]`)
 
 Scored as prose:
 
 - Paragraphs, blockquote content, footnote definitions
 - Link text (the URL contributes nothing)
-- Emphasis and strong are transparent: just their text
+- Emphasis, strong, and strikethrough are transparent: just their text
 
-Placeholders: each inline code span and each bare URL/autolink is replaced by one placeholder word. It counts as exactly one word of one syllable and can never be complex. (Deleting these tokens instead would make sentences look shorter than they read.)
+Placeholders: each inline code span and each bare URL/autolink is replaced by one placeholder word. It counts as exactly one word of one syllable and can never be complex. (Deleting these tokens instead would make sentences look shorter than they read.) A bare URL starts at `http://` or `https://` (any letter case) at a word boundary (the start of the document, or after a non-alphanumeric character) and runs to the next whitespace or `<`; inside link text it stops at the text's end. Trailing punctuation goes back to the sentence: GFM's extended-autolink trimming (its punctuation and quote set, an unbalanced trailing `)`, and a `;` closing an entity reference, which takes the whole entity with it), plus `…`; a `;` closing no entity stays in the URL. Other schemes and scheme-less hosts (`www.…`) stay text.
 
 ## Sentence segmentation
 
