@@ -115,7 +115,7 @@ fog: 12.4 (target 10)
 ```
 
 - Score line: `fog: <score> (target <target>)`, score at one decimal.
-- Hotspot line, in document order: contribution at two decimals with sign (it is a delta, not a grade claim), word count as `<N>w`, source line number as `L<N>` for `--file` input only, an excerpt of the sentence's first ~8 words as written in the source (quoted, `…` when truncated), then `complex:` and the sentence's complex words in document order — omitted when the sentence has none. Local per-sentence fog is never printed.
+- Hotspot line, in document order: contribution at two decimals with sign (it is a delta, not a grade claim), word count as `<N>w`, source line number as `L<N>` for `--file` input only, an excerpt of the sentence's first ~8 words as written in the source (quoted, `…` when truncated), then `complex:` and the sentence's complex words in document order, deduplicated case-insensitively keeping the first spelling — omitted when the sentence has none. Local per-sentence fog is never printed.
 - At or under target: the score line alone.
 
 ## Implementation

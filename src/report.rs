@@ -10,6 +10,7 @@
 use crate::score::{Analysis, FLOOR, Refusal, Scored, printed};
 use crate::segment::Sentence;
 use crate::syllable::complex_words;
+use std::collections::HashSet;
 
 /// How many leading source words a hotspot excerpt shows.
 const EXCERPT_WORDS: usize = 8;
@@ -54,6 +55,9 @@ pub fn render(
 
 /// The score line, the hotspot lines in document order, and the tail.
 ///
+/// Each hotspot's `complex:` list is deduplicated case-insensitively,
+/// first spelling kept, mirroring the refusal line.
+///
 /// Author: Claude Fable 5
 fn scored_text(
     source: &str,
@@ -78,7 +82,12 @@ fn scored_text(
         out.push('"');
         let complex = complex_words(sentence);
         if !complex.is_empty() {
-            let names: Vec<&str> = complex.iter().map(|word| word.text.as_str()).collect();
+            let mut seen = HashSet::new();
+            let names: Vec<&str> = complex
+                .iter()
+                .filter(|word| seen.insert(word.text.to_lowercase()))
+                .map(|word| word.text.as_str())
+                .collect();
             out.push_str(" complex: ");
             out.push_str(&names.join(", "));
         }
@@ -125,6 +134,36 @@ fn excerpt(sentence: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prose::extract;
+    use crate::score::analyse;
+    use crate::segment::sentences;
+
+    /// Author: Claude Fable 5
+    #[test]
+    fn hotspot_complex_dedupe_is_per_hotspot_case_insensitive_keeping_first_spelling() {
+        // Both long sentences open with "Beautiful" (sentence-initial, so
+        // the proper-name exclusion cannot excuse it) and repeat it
+        // lowercase. Within a hotspot the repeat folds into the opener,
+        // but the word still prints on every hotspot that has it. The
+        // "day" padding lifts the document over the 100-word floor.
+        let md = format!(
+            "Beautiful beautiful {}sea. Beautiful beautiful {}sea. Bravo {}sea.",
+            "day ".repeat(57),
+            "day ".repeat(37),
+            "day ".repeat(8)
+        );
+        let found = sentences(&md, &extract(&md));
+        let analysis = analyse(&found, 10.0, 10);
+        let report = render(&md, &found, &analysis, 10, 10, false);
+        let lines: Vec<&str> = report.lines().collect();
+        assert_eq!(lines.len(), 3, "score line and two hotspots:\n{report}");
+        for hotspot in &lines[1..] {
+            assert!(
+                hotspot.ends_with("complex: Beautiful"),
+                "expected the first spelling alone, line was: {hotspot}"
+            );
+        }
+    }
 
     /// Author: Claude Fable 5
     #[test]
