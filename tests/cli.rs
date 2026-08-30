@@ -97,7 +97,7 @@ fn foggy_doc() -> String {
 }
 
 const ALPHA_LINE: &str = "+3.04 40w \"Alpha beautiful beautiful beautiful beautiful beautiful beautiful day…\" \
-complex: beautiful, beautiful, beautiful, beautiful, beautiful, beautiful";
+complex: beautiful";
 
 /// Author: Claude Fable 5
 #[test]
