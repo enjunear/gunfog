@@ -481,8 +481,10 @@ same install path.
 Biome's no-postinstall variant is the better model for `gfog`: fewer moving parts, and
 postinstall scripts are commonly disabled in hardened CI.
 
-cargo-dist's npm installer generates this shape, so it comes with the same config that generates
-the tap.
+cargo-dist's npm installer does not generate this shape. It generates one package with a
+`postinstall` that downloads the binary from the GitHub Release, and 0.32.0 has no config key for
+the platform-package layout. Corrected 2026-08-31, after the original claim here propagated into
+`SPEC.md`; the measurements are in `npm-platform-packages.md`.
 
 ### 3.4 cargo-binstall
 
@@ -552,7 +554,7 @@ counting anyway. That is `gfog`'s own rule, and it sits on top of whatever count
 | **Cold start** | 1.0 ms (spike), 2.5 ms with an embedded dictionary. | 6.5 ms, identical compiled or interpreted. |
 | **Bespoke segmentation rules** | Cheaper. UAX #29 already handles decimals, versions, URLs and lowercase-following abbreviations. One abbreviation list closes the gap. pulldown-cmark gives byte offsets for free. | The prior note's spike worked, but its regex splitting failed on `1.2.3`; retext's nlcst tree gives line/column/offset for free, which is the JS side's real strength. |
 | **Syllables / complex words** | The one real loss. Best in-budget option is a ~400-line port of `syllable`'s MIT rules plus `regex-lite` (+59 KB). Nothing on crates.io is both accurate and small. | `syllable` v5.0.1 works today at 28/31 measured. Zero effort. |
-| **Distribution** | cargo-dist v0.32.0 generates Homebrew tap, npm platform packages, shell/PowerShell installers, MSI and cross-compiled artifacts from one config. `cargo binstall` as a bonus. | npm publish is trivial and `bunx gfog` works immediately. Homebrew means shipping a 79 MB bottle per platform, or a formula depending on Bun, which reintroduces a runtime dependency. |
+| **Distribution** | cargo-dist v0.32.0 generates Homebrew tap, an npm package, shell/PowerShell installers, MSI and cross-compiled artifacts from one config. `cargo binstall` as a bonus. (Corrected 2026-08-31: this row read "npm platform packages". cargo-dist's npm package is a `postinstall` downloader and it cannot emit the platform-package shape. See `npm-platform-packages.md`.) | npm publish is trivial and `bunx gfog` works immediately. Homebrew means shipping a 79 MB bottle per platform, or a formula depending on Bun, which reintroduces a runtime dependency. |
 | **Agent-friendliness** | 6 transitive dependencies. `cargo check` in 0.64 s, incremental rebuild in 0.11 s. The compiler catches the class of error an agent ships silently. Agents write less Rust than TypeScript, but this program is string processing with value semantics, the part of Rust that does not fight back. | Agents write TypeScript most fluently. No compile step. Against that: the prior note documented `unist-util-visit` silently corrupting traversal because `Array.push` returns a number, which is exactly the bug class a type checker does not catch and a Rust `match` would not permit. |
 
 Bun wins on two things: the syllable counter exists today, and agents write TypeScript more

@@ -78,7 +78,9 @@ Calibration targets Gunning's own worked example and a hand-counted golden corpu
 Development lives on the self-hosted GitLab (`git remote -v`). 
 Releases have to originate from a GitHub mirror, because cargo-dist supports only GitHub Actions and GitHub Releases. 
 That constraint reaches into `Cargo.toml`, whose `repository` field must name the mirror, which is then the URL crates.io, Homebrew and npm advertise. 
-Write the ADR when implementation starts.
+`docs/adr/0001-github-release-origin.md` records the split and what it forces; `docs/releasing.md` is the runbook. 
+cargo-dist's config is `dist-workspace.toml`, and `.github/workflows/v-release.yml` is generated from it. 
+Commit the two together; `dist generate --check` catches a stale workflow and runs locally, not in CI.
 
 ## Working in this repo
 
