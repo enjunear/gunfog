@@ -1,0 +1,38 @@
+[workspace]
+members = ["cargo:."]
+
+# Config for 'dist'. Regenerate the workflow with `dist generate` after any edit
+# here, and check it in; `dist generate --check` fails on a stale workflow.
+[dist]
+# The preferred dist version to use in CI (Cargo.toml SemVer syntax)
+cargo-dist-version = "0.32.0"
+# CI backends to support
+ci = "github"
+# The installers to generate for each app
+installers = ["shell", "npm", "homebrew"]
+# Target platforms to build apps for (Rust target-triple syntax). Linux is musl
+# only, because one static binary per architecture runs on any distro. `dist
+# init` merges its default glibc triples into whatever you pass; they are
+# deleted here, and will come back if anyone reruns `dist init`.
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "aarch64-unknown-linux-musl", "x86_64-unknown-linux-musl", "x86_64-pc-windows-msvc"]
+# Publish to the shared tap and to npm. The npm package name defaults to the
+# crate name, `gunfog`, and stays unscoped because no `npm-scope` is set.
+# crates.io is not on this list: dist has no crates.io job, so `cargo publish`
+# is a manual step. See docs/releasing.md.
+publish-jobs = ["homebrew", "npm"]
+# The GitHub repo holding the generated Homebrew formula. Pushes to it need the
+# HOMEBREW_TAP_TOKEN secret on the mirror.
+tap = "enjunear/homebrew-tap"
+# Path that installers should place binaries in
+install-path = "CARGO_HOME"
+# Where to host releases
+hosting = "github"
+# Windows ships a zip. This is also the dist default; pinned so the spec's platform matrix
+# does not quietly change under a dist upgrade.
+windows-archive = ".zip"
+# Whether to install an updater program
+install-updater = false
+# Require the release tag to start with `v`. This is what puts `v` in the
+# workflow's tag glob, so a bare `0.1.0` tag cannot cut a release. It also
+# renames the generated workflow to `v-release.yml`.
+tag-namespace = "v"

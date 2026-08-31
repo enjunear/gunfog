@@ -167,17 +167,17 @@ Release CI is separate: cargo-dist-generated GitHub Actions on the mirror (below
 
 ## Distribution
 
-cargo-dist is the release tool; config lives in `dist-workspace.toml` (`[workspace.metadata.dist]` is deprecated). **GitHub is the release origin**: cargo-dist supports only GitHub Actions and GitHub Releases, so the public mirror at github.com/enjunear is a hard requirement, not a preference. The self-hosted GitLab stays the development home. This split deserves an ADR when implementation starts.
+cargo-dist is the release tool; config lives in `dist-workspace.toml` (`[workspace.metadata.dist]` is deprecated). **GitHub is the release origin**: cargo-dist supports only GitHub Actions and GitHub Releases, so the public mirror at github.com/enjunear is a hard requirement, not a preference. The self-hosted GitLab stays the development home. `docs/adr/0001-github-release-origin.md` records the split.
 
 - Trigger: `v`-prefixed plain semver tags pushed to the mirror, starting at v0.1.0. No prerelease or nightly channels.
 - Platform matrix: macOS arm64 + x64, Linux x64 + arm64 (musl static), Windows x64 zip. No 32-bit.
 - Channels at first release:
   1. Homebrew: formula `gunfog` in the shared tap `enjunear/homebrew-tap`, pushed automatically via a tap PAT.
-  2. npm: unscoped package `gunfog`, biome-style platform packages (`os`/`cpu`-gated optionalDependencies carrying the native binary, JS shim `bin`, no postinstall), so `bunx gunfog` works with zero install.
+  2. npm: unscoped package `gunfog`, as cargo-dist generates it. `bunx gunfog` works with zero install. bun skips the `postinstall`, but the package's run path downloads the binary from the GitHub Release on first invocation anyway, so the skip costs a slower first run rather than a broken one. That download is not checksummed. See `docs/research/npm-platform-packages.md`.
   3. Shell installer script from the release page.
   4. crates.io: cargo-dist has no crates.io publish job (`publish-jobs` supports only homebrew, npm, custom), so `cargo publish` is a manual step with a named owner.
-- Deferred: Windows MSI (until a Windows user asks); cargo-binstall metadata (only if the conventional asset names don't already work).
-- Canonical invocation: `gunfog` on PATH via brew or the shell installer. `bunx gunfog` is the documented no-install fallback; it pays cold-start resolution, so repeat callers should install.
+- Deferred: Windows MSI (until a Windows user asks); cargo-binstall metadata (only if the conventional asset names don't already work); biome-style npm platform packages (`os`/`cpu`-gated optionalDependencies carrying the native binary, JS shim `bin`, no scripts), which are the target shape and close the checksum gap, but which cargo-dist cannot emit, so they need a separate publish workflow.
+- Canonical invocation: `gunfog` on PATH via brew or the shell installer. `bunx gunfog` is the documented no-install fallback; it pays cold-start resolution and a first-run binary download, so repeat callers should install.
 
 ## Out of scope
 

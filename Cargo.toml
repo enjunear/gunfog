@@ -6,6 +6,9 @@ rust-version = "1.98.0"
 description = "Scores prose with the Gunning fog index and names the sentences driving the score."
 license = "Apache-2.0"
 repository = "https://github.com/enjunear/gunfog"
+# Same URL as `repository`, and duplicated on purpose. The Homebrew formula carries a
+# `homepage` field, and `dist generate` warns when the publish job has nothing to put there.
+homepage = "https://github.com/enjunear/gunfog"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
