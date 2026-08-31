@@ -189,7 +189,8 @@ fn adjustments(word: &str) -> i32 {
 ///
 /// Gunning's exclusions are applied here, so a word this function omits
 /// never reaches a `complex:` list: proper names (capitalised, not the
-/// sentence's first word), words 3-syllable only by an `-ed`/`-es` ending
+/// sentence's first word, and not led by a placeholder's capitalised
+/// stand-in), words 3-syllable only by an `-ed`/`-es` ending
 /// (`-ing` deliberately not excused), hyphenated words unless a
 /// hyphen-separated part is 3+ syllables on its own, and words tokenisation
 /// marked never-complex (numbers, placeholder words).
@@ -230,7 +231,11 @@ fn is_complex(word: &Word, sentence_initial: bool) -> bool {
     }
     // A capitalised word not at sentence start is a proper name. A name
     // opening a sentence slips through and gets counted; accepted cost.
-    if !sentence_initial && word.text.chars().next().is_some_and(char::is_uppercase) {
+    // A placeholder's capital is segmentation, not evidence of a name.
+    if !sentence_initial
+        && !word.placeholder_led
+        && word.text.chars().next().is_some_and(char::is_uppercase)
+    {
         return false;
     }
     // A hyphenated word is judged per part on syllables alone. The
@@ -379,6 +384,19 @@ mod tests {
         // of its second part, and so does a 3-syllable -ed part.
         assert_eq!(complex_in("an agent-oriented design"), ["agent-oriented"]);
         assert_eq!(complex_in("the re-created scene"), ["re-created"]);
+    }
+
+    /// The stand-in's leading capital is a segmentation device and must
+    /// not reach the proper-name exclusion: a compound led by a
+    /// placeholder is still judged on its real parts.
+    ///
+    /// Author: Claude Opus 5
+    #[test]
+    fn a_placeholder_led_compound_is_not_a_proper_name() {
+        assert_eq!(
+            complex_in("a `foo`-oriented interpretation"),
+            ["X-oriented", "interpretation"]
+        );
     }
 
     /// Author: Claude Fable 5

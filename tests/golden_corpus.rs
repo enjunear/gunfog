@@ -67,7 +67,12 @@ fn gunning_snippets_sample() {
 }
 
 /// `docs/research/naming-collisions.md`, the verdict paragraph. 114 words,
-/// 4 sentences, 18 complex: fog 17.72, printed 17.7.
+/// 5 sentences, 18 complex: fog 15.44, printed 15.4.
+///
+/// The opening sentence ends at "with zero hits of any kind." and the next
+/// one opens with the `gfog` code span. That break exists because the
+/// placeholder's stand-in is capitalised; with a lowercase stand-in the
+/// two read as one 54-word sentence.
 ///
 /// Two judgement calls a reader might dispute, both aligned with the
 /// rules: `every` (twice) is 3 syllables per CMUdict (`EH1 V ER0 IY0`)
@@ -81,7 +86,7 @@ fn gunning_snippets_sample() {
 fn naming_verdict_sample() {
     assert_sample(
         include_str!("corpus/naming-verdict.md"),
-        &[54, 24, 26, 10],
+        &[11, 43, 24, 26, 10],
         &[
             "everywhere",
             "every",
@@ -102,7 +107,7 @@ fn naming_verdict_sample() {
             "collision",
             "deciding",
         ],
-        "fog: 17.7 (target 10)\n",
+        "fog: 15.4 (target 10)\n",
     );
 }
 
@@ -176,11 +181,14 @@ fn boundary_finding_sample() {
 }
 
 /// `docs/research/existing-readability-tools.md`, the textstat survey
-/// bullets. 155 words, 10 sentences, 10 complex: fog 8.78, printed 8.8.
+/// bullets. 155 words, 12 sentences, 10 complex: fog 7.75, printed 7.7.
 /// The one under-target sample, so the report is the score line alone.
 ///
 /// Every list item's start and end are sentence boundaries, and each of
-/// the eleven inline code spans counts as one placeholder word. One
+/// the twenty inline code spans counts as one placeholder word. Two of
+/// those spans open a sentence and carry its boundary on the strength of
+/// the capitalised stand-in: the third bullet breaks after "the canonical
+/// one." and again before "`following` and `interesting` are not". One
 /// rule-counter miss: `syllables` (3 per CMUdict, twice in the passage) —
 /// the plural defeats the consonant+`le` correction that counts the
 /// singular correctly, so the counter reads 2 and the word never reaches
@@ -192,7 +200,7 @@ fn textstat_survey_sample() {
     let source = include_str!("corpus/textstat-survey.md");
     assert_sample(
         source,
-        &[2, 17, 3, 29, 14, 29, 10, 24, 8, 19],
+        &[2, 17, 3, 8, 21, 14, 14, 15, 10, 24, 8, 19],
         &[
             "inspecting",
             "distribution",
@@ -205,13 +213,13 @@ fn textstat_survey_sample() {
             "ecosystem",
             "positions",
         ],
-        "fog: 8.8 (target 10)\n",
+        "fog: 7.7 (target 10)\n",
     );
     // Under target: the whole report is the score line.
     let found = sentences(source, &extract(source));
     let analysis = analyse(&found, 10.0, 10);
     assert_eq!(
         render(source, &found, &analysis, 10, 10, false),
-        "fog: 8.8 (target 10)\n"
+        "fog: 7.7 (target 10)\n"
     );
 }
