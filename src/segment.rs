@@ -17,7 +17,15 @@ use crate::prose::ProseEvent;
 
 /// The stand-in text a placeholder word contributes to segmentation: one
 /// simple word, so the sentence keeps its grammatical slot and length.
-const PLACEHOLDER_WORD: &str = "x";
+///
+/// The capital carries a sentence break. UAX #29 suppresses a break
+/// before a lowercase follower, so a lowercase stand-in merges a
+/// code-span-initial or URL-initial sentence into the one before it.
+/// Capitalised, a placeholder after a terminator opens a sentence exactly
+/// as a real capitalised word does. The case is a segmentation device and
+/// nothing more; [`Word::placeholder_led`] keeps it out of complex-word
+/// judgement.
+const PLACEHOLDER_WORD: &str = "X";
 
 /// The abbreviations whose trailing period never ends a sentence, exactly
 /// as fixed in `SPEC.md`. `etc.` is deliberately absent: it legitimately
@@ -33,11 +41,17 @@ const ABBREVIATIONS: [&str; 10] = [
 pub struct Word {
     /// The word as written: a hyphenated compound keeps its hyphens, a
     /// contraction stays whole. A placeholder word carries its stand-in
-    /// text instead, which never reaches output.
+    /// text instead, which reaches output only where the placeholder is
+    /// joined to real text in a compound.
     pub text: String,
     /// Number/version strings and placeholder words can never be complex,
     /// whatever the syllable counter would make of their text.
     pub never_complex: bool,
+    /// Whether the word's first character comes from a placeholder's
+    /// stand-in. The stand-in is capitalised for segmentation, which is no
+    /// evidence that the source word was a proper name, so the proper-name
+    /// exclusion must not fire on it.
+    pub placeholder_led: bool,
 }
 
 /// One sentence of prose: the scoring unit.
@@ -115,14 +129,21 @@ pub fn sentences(source: &str, events: &[ProseEvent]) -> Vec<Sentence> {
             // with thousands of code spans ever notices.
             let words = tokens
                 .iter()
-                .map(|token| Word {
-                    text: text[token.clone()].to_string(),
-                    never_complex: is_number(&text[token.clone()])
-                        || pieces.iter().any(|piece| {
-                            piece.placeholder
-                                && piece.text.start <= token.start
-                                && token.end <= piece.text.end
-                        }),
+                .map(|token| {
+                    // The placeholder piece holding the token's first byte,
+                    // if any: it leads the word, and covers the whole token
+                    // when the word is nothing but the placeholder.
+                    let placeholder = pieces.iter().find(|piece| {
+                        piece.placeholder
+                            && piece.text.start <= token.start
+                            && token.start < piece.text.end
+                    });
+                    Word {
+                        text: text[token.clone()].to_string(),
+                        never_complex: is_number(&text[token.clone()])
+                            || placeholder.is_some_and(|piece| token.end <= piece.text.end),
+                        placeholder_led: placeholder.is_some(),
+                    }
                 })
                 .collect();
             out.push(Sentence { words, span, line });
@@ -510,25 +531,77 @@ mod tests {
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].words.len(), 3);
         assert!(found[0].words[1].never_complex);
+        assert!(found[0].words[1].placeholder_led);
         assert!(!found[0].words[0].never_complex);
+        assert!(!found[0].words[0].placeholder_led);
     }
 
     /// A placeholder joined to other text (across a hyphen or flush
     /// against it) does not spread never-complex onto the compound: in
-    /// `x-oriented` the real part stays eligible, and the bare-suffix join
-    /// `xs` is likewise unexcused, with the stand-in contributing its own
-    /// one syllable as the placeholder contract says.
+    /// `X-oriented` the real part stays eligible, and the bare-suffix join
+    /// `Xs` is likewise unexcused, with the stand-in contributing its own
+    /// one syllable as the placeholder contract says. Both are led by the
+    /// stand-in, so its capital is flagged rather than read as a name.
     ///
     /// Author: Claude Fable 5
+    /// Author: Claude Opus 5
     #[test]
     fn a_placeholder_compound_keeps_its_real_parts_eligible() {
         let found = parse("A `foo`-oriented interpretation.");
-        assert_eq!(found[0].words[1].text, "x-oriented");
+        assert_eq!(found[0].words[1].text, "X-oriented");
         assert!(!found[0].words[1].never_complex);
+        assert!(found[0].words[1].placeholder_led);
 
         let found = parse("Many `cargo test`s were run.");
-        assert_eq!(found[0].words[1].text, "xs");
+        assert_eq!(found[0].words[1].text, "Xs");
         assert!(!found[0].words[1].never_complex);
+        assert!(found[0].words[1].placeholder_led);
+    }
+
+    /// The stand-in's capital is what carries this break. UAX #29
+    /// suppresses a break before a lowercase follower, so with a lowercase
+    /// stand-in a sentence opening with a code span, a bare URL, or an
+    /// autolink is swallowed by the sentence before it.
+    ///
+    /// Author: Claude Opus 5
+    #[test]
+    fn a_placeholder_after_a_terminator_starts_a_sentence() {
+        assert_eq!(parse("It ran here. `cargo test` came next.").len(), 2);
+        assert_eq!(
+            parse("It ran here. https://example.com/x came next.").len(),
+            2
+        );
+        assert_eq!(
+            parse("It ran here. <https://example.com/x> came next.").len(),
+            2
+        );
+    }
+
+    /// Away from a terminator the stand-in's capital changes nothing:
+    /// UAX #29 only consults case after a sentence terminator.
+    ///
+    /// Author: Claude Opus 5
+    #[test]
+    fn a_placeholder_inside_a_sentence_creates_no_boundary() {
+        assert_eq!(parse("We run `cargo test` before every push.").len(), 1);
+        assert_eq!(
+            parse("We read https://example.com/x before every push.").len(),
+            1
+        );
+        assert_eq!(
+            parse("We read <https://example.com/x> before every push.").len(),
+            1
+        );
+    }
+
+    /// A listed abbreviation before a code span stays one sentence. The
+    /// capital stand-in makes UAX #29 break there exactly as a real
+    /// capitalised word does, and the existing merge pass undoes it.
+    ///
+    /// Author: Claude Opus 5
+    #[test]
+    fn a_listed_abbreviation_before_a_placeholder_still_merges() {
+        assert_eq!(parse("Ask Dr. `smith` about it.").len(), 1);
     }
 
     /// A sentence's line is the line it starts on, taken from the spans the
