@@ -6,11 +6,10 @@ Terms (prose, sentence, word, complex word, placeholder word, contribution, hots
 
 ## CLI contract
 
-Exactly one input per call:
+Input is `--file`, or stdin without it:
 
-- Inline argument: `gunfog "some text"`
 - File: `gunfog --file path.md`
-- Stdin, when neither is given: `cat doc.md | gunfog`
+- Stdin, when `--file` is not given: `cat doc.md | gunfog`
 
 Flags:
 
