@@ -1,4 +1,4 @@
-//! The CLI contract from `SPEC.md`: exactly one input per call, the two
+//! The CLI contract from `SPEC.md`: the two input modes, the two
 //! flags, byte-exact output rendering, and the grep/diff exit codes. 0 is
 //! a scored document at or under target; 1 is a document read and judged
 //! (over target or under the floor); 2 never scored anything at all.
@@ -102,7 +102,7 @@ complex: beautiful";
 /// Author: Claude Fable 5
 #[test]
 fn at_or_under_target_prints_the_score_line_alone_and_passes() {
-    let output = run(&[&passing_doc()], "");
+    let output = run(&[], &passing_doc());
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     assert_eq!(stdout_of(&output), "fog: 4.0 (target 10)\n");
     assert_eq!(stderr_of(&output), "");
@@ -163,8 +163,8 @@ fn limit_zero_prints_the_score_line_alone_even_over_target() {
 #[test]
 fn short_input_refuses_naming_complex_words() {
     let output = run(
-        &["The paradigm was beautiful. A paradigm stays beautiful."],
-        "",
+        &[],
+        "The paradigm was beautiful. A paradigm stays beautiful.",
     );
     assert_eq!(output.status.code(), Some(1), "{output:?}");
     assert_eq!(
@@ -176,7 +176,7 @@ fn short_input_refuses_naming_complex_words() {
 /// Author: Claude Fable 5
 #[test]
 fn refusal_with_limit_zero_drops_the_complex_line() {
-    let output = run(&["--limit", "0", "The paradigm was beautiful."], "");
+    let output = run(&["--limit", "0"], "The paradigm was beautiful.");
     assert_eq!(output.status.code(), Some(1), "{output:?}");
     assert_eq!(stdout_of(&output), "no score: 4 words (min 100)\n");
 }
@@ -184,7 +184,7 @@ fn refusal_with_limit_zero_drops_the_complex_line() {
 /// Author: Claude Fable 5
 #[test]
 fn zero_prose_refuses_with_a_zero_count() {
-    let output = run(&["# Heading only"], "");
+    let output = run(&[], "# Heading only");
     assert_eq!(output.status.code(), Some(1), "{output:?}");
     assert_eq!(stdout_of(&output), "no score: 0 words (min 100)\n");
 }
@@ -200,18 +200,43 @@ fn file_flag_is_the_input() {
 }
 
 /// Author: Claude Opus 5
+/// Author: Claude Fable 5
 #[test]
-fn two_inputs_at_once_are_rejected() {
-    let path = markdown_file("rejected.md", "the fog rolled in\n");
-    let output = run(
-        &["some text", "--file", path.to_str().expect("path is UTF-8")],
-        "stdin this run will never read",
-    );
+fn a_positional_argument_is_rejected() {
+    let output = run(&["some text"], "stdin this run will never read");
     assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert_eq!(stdout_of(&output), "");
     assert!(
-        stderr_of(&output).contains("cannot be used with"),
+        stderr_of(&output).contains("unexpected argument"),
         "{output:?}"
     );
+}
+
+/// With no positional to escape into, `--` saves nothing.
+///
+/// Author: Claude Fable 5
+#[test]
+fn a_positional_argument_after_double_dash_is_rejected() {
+    let output = run(&["--", "- text"], "stdin this run will never read");
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert_eq!(stdout_of(&output), "");
+    assert!(
+        stderr_of(&output).contains("unexpected argument"),
+        "{output:?}"
+    );
+}
+
+/// The usage line names no TEXT argument: `--file` and stdin are the only
+/// inputs.
+///
+/// Author: Claude Fable 5
+#[test]
+fn help_offers_no_positional_argument() {
+    let output = run(&["--help"], "");
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let help = stdout_of(&output);
+    assert!(help.contains("Usage: gunfog [OPTIONS]"), "{help}");
+    assert!(!help.contains("Arguments:"), "{help}");
 }
 
 /// Author: Claude Opus 5

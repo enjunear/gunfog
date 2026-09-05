@@ -3,7 +3,7 @@
 //! CLI wiring. All logic lives in the library.
 
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::Parser;
@@ -16,12 +16,8 @@ use gunfog::segment::sentences;
 #[derive(Parser)]
 #[command(version, about)]
 struct Cli {
-    /// Prose to score. Omit to read from --file, or from stdin if neither is
-    /// given.
-    text: Option<String>,
-
-    /// Markdown file to score.
-    #[arg(long, value_name = "PATH", conflicts_with = "text")]
+    /// Markdown file to score. Omit to read from stdin.
+    #[arg(long, value_name = "PATH")]
     file: Option<PathBuf>,
 
     /// Fog score threshold. Sets hotspot flagging and the exit code.
@@ -63,7 +59,7 @@ fn main() -> ExitCode {
 /// Author: Claude Opus 5
 /// Author: Claude Fable 5
 fn run(cli: &Cli) -> std::io::Result<bool> {
-    let input = read_input(cli)?;
+    let input = read_input(cli.file.as_deref())?;
     let found = sentences(&input, &extract(&input));
     let analysis = analyse(&found, cli.target as f64, cli.limit);
     // Line numbers are source lines, which only --file input can honour.
@@ -81,18 +77,15 @@ fn run(cli: &Cli) -> std::io::Result<bool> {
     Ok(analysis.passes())
 }
 
-/// Resolves the one input for this call: inline argument, `--file`, or stdin.
-///
-/// clap rejects an inline argument and `--file` together, so the two-input case
-/// never reaches here.
+/// Resolves the one input for this call: `--file`, or stdin without it.
 ///
 /// Author: Claude Opus 5
-fn read_input(cli: &Cli) -> std::io::Result<String> {
-    match (&cli.text, &cli.file) {
-        (Some(text), _) => Ok(text.clone()),
-        (None, Some(path)) => std::fs::read_to_string(path)
+/// Author: Claude Fable 5
+fn read_input(file: Option<&Path>) -> std::io::Result<String> {
+    match file {
+        Some(path) => std::fs::read_to_string(path)
             .map_err(|err| std::io::Error::new(err.kind(), format!("{}: {err}", path.display()))),
-        (None, None) => {
+        None => {
             let mut buf = String::new();
             std::io::stdin().read_to_string(&mut buf)?;
             Ok(buf)
