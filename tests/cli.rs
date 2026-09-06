@@ -173,6 +173,34 @@ fn short_input_refuses_naming_complex_words() {
     );
 }
 
+/// A compound joining a placeholder to real text is named in a `complex:`
+/// list by its real remainder, joiners kept; the stand-in never reaches
+/// output on either the hotspot or the refusal path.
+///
+/// Author: Claude Fable 5
+#[test]
+fn a_placeholder_compound_is_named_by_its_remainder() {
+    let refusal = run(&[], "A `foo`-oriented interpretation.");
+    assert_eq!(refusal.status.code(), Some(1), "{refusal:?}");
+    assert_eq!(
+        stdout_of(&refusal),
+        "no score: 3 words (min 100)\ncomplex: -oriented, interpretation\n"
+    );
+
+    let body = format!(
+        "The story of a `foo`-oriented interpretation follows here. {}",
+        passing_doc()
+    );
+    let hotspot = run(&["--target", "1"], &body);
+    assert_eq!(hotspot.status.code(), Some(1), "{hotspot:?}");
+    let stdout = stdout_of(&hotspot);
+    assert!(
+        stdout.contains("complex: -oriented, interpretation"),
+        "{stdout}"
+    );
+    assert!(!stdout.contains('X'), "{stdout}");
+}
+
 /// Author: Claude Fable 5
 #[test]
 fn refusal_with_limit_zero_drops_the_complex_line() {

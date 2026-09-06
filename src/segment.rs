@@ -23,8 +23,8 @@ use crate::prose::ProseEvent;
 /// code-span-initial or URL-initial sentence into the one before it.
 /// Capitalised, a placeholder after a terminator opens a sentence exactly
 /// as a real capitalised word does. The case is a segmentation device and
-/// nothing more; [`Word::placeholder_led`] keeps it out of complex-word
-/// judgement.
+/// nothing more; the stand-in is stripped from every word's text before
+/// judgement, so the capital never reaches the complex-word rule.
 const PLACEHOLDER_WORD: &str = "X";
 
 /// The abbreviations whose trailing period never ends a sentence, exactly
@@ -39,19 +39,17 @@ const ABBREVIATIONS: [&str; 10] = [
 /// Author: Claude Fable 5
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Word {
-    /// The word as written: a hyphenated compound keeps its hyphens, a
-    /// contraction stays whole. A placeholder word carries its stand-in
-    /// text instead, which reaches output only where the placeholder is
-    /// joined to real text in a compound.
+    /// The word as written, with any placeholder stand-in stripped: a
+    /// hyphenated compound keeps its hyphens, a contraction stays whole,
+    /// and a word joined to a placeholder keeps only its real remainder
+    /// with joiners kept (`` `foo` ``-oriented carries `-oriented`). A
+    /// bare placeholder strips to the empty string. Stand-in text never
+    /// reaches judgement or output.
     pub text: String,
-    /// Number/version strings and placeholder words can never be complex,
-    /// whatever the syllable counter would make of their text.
+    /// Number/version strings and placeholder words (an empty remainder)
+    /// can never be complex, whatever the syllable counter would make of
+    /// their text.
     pub never_complex: bool,
-    /// Whether the word's first character comes from a placeholder's
-    /// stand-in. The stand-in is capitalised for segmentation, which is no
-    /// evidence that the source word was a proper name, so the proper-name
-    /// exclusion must not fire on it.
-    pub placeholder_led: bool,
 }
 
 /// One sentence of prose: the scoring unit.
@@ -130,19 +128,24 @@ pub fn sentences(source: &str, events: &[ProseEvent]) -> Vec<Sentence> {
             let words = tokens
                 .iter()
                 .map(|token| {
-                    // The placeholder piece holding the token's first byte,
-                    // if any: it leads the word, and covers the whole token
-                    // when the word is nothing but the placeholder.
-                    let placeholder = pieces.iter().find(|piece| {
-                        piece.placeholder
-                            && piece.text.start <= token.start
-                            && token.start < piece.text.end
-                    });
+                    // The token with any stand-in bytes dropped: the real
+                    // remainder is what the word is judged and named by. A
+                    // token that is nothing but stand-in strips to empty,
+                    // which is the bare placeholder's never-complex
+                    // contract. A token holds no whitespace, so its every
+                    // byte sits in some piece.
+                    let remainder: String = pieces
+                        .iter()
+                        .filter(|piece| !piece.placeholder)
+                        .filter_map(|piece| {
+                            let start = piece.text.start.max(token.start);
+                            let end = piece.text.end.min(token.end);
+                            (start < end).then(|| &text[start..end])
+                        })
+                        .collect();
                     Word {
-                        text: text[token.clone()].to_string(),
-                        never_complex: is_number(&text[token.clone()])
-                            || placeholder.is_some_and(|piece| token.end <= piece.text.end),
-                        placeholder_led: placeholder.is_some(),
+                        never_complex: remainder.is_empty() || is_number(&remainder),
+                        text: remainder,
                     }
                 })
                 .collect();
@@ -531,31 +534,35 @@ mod tests {
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].words.len(), 3);
         assert!(found[0].words[1].never_complex);
-        assert!(found[0].words[1].placeholder_led);
+        assert_eq!(found[0].words[1].text, "");
         assert!(!found[0].words[0].never_complex);
-        assert!(!found[0].words[0].placeholder_led);
     }
 
     /// A placeholder joined to other text (across a hyphen or flush
-    /// against it) does not spread never-complex onto the compound: in
-    /// `X-oriented` the real part stays eligible, and the bare-suffix join
-    /// `Xs` is likewise unexcused, with the stand-in contributing its own
-    /// one syllable as the placeholder contract says. Both are led by the
-    /// stand-in, so its capital is flagged rather than read as a name.
+    /// against it) carries only the real remainder, joiners kept: the
+    /// stand-in is stripped before the word is judged or named, so
+    /// `` `foo` ``-oriented is the word `-oriented` and `` `cargo test` ``s
+    /// is the word `s`. The compound is still one word, and the remainder
+    /// stays eligible for complexity.
     ///
     /// Author: Claude Fable 5
     /// Author: Claude Opus 5
     #[test]
-    fn a_placeholder_compound_keeps_its_real_parts_eligible() {
+    fn a_placeholder_compound_carries_only_its_real_remainder() {
         let found = parse("A `foo`-oriented interpretation.");
-        assert_eq!(found[0].words[1].text, "X-oriented");
+        assert_eq!(found[0].words.len(), 3);
+        assert_eq!(found[0].words[1].text, "-oriented");
         assert!(!found[0].words[1].never_complex);
-        assert!(found[0].words[1].placeholder_led);
 
         let found = parse("Many `cargo test`s were run.");
-        assert_eq!(found[0].words[1].text, "Xs");
+        assert_eq!(found[0].words.len(), 4);
+        assert_eq!(found[0].words[1].text, "s");
         assert!(!found[0].words[1].never_complex);
-        assert!(found[0].words[1].placeholder_led);
+
+        let found = parse("A multi-`foo` approach.");
+        assert_eq!(found[0].words.len(), 3);
+        assert_eq!(found[0].words[1].text, "multi-");
+        assert!(!found[0].words[1].never_complex);
     }
 
     /// The stand-in's capital is what carries this break. UAX #29

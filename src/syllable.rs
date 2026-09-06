@@ -189,8 +189,7 @@ fn adjustments(word: &str) -> i32 {
 ///
 /// Gunning's exclusions are applied here, so a word this function omits
 /// never reaches a `complex:` list: proper names (capitalised, not the
-/// sentence's first word, and not led by a placeholder's capitalised
-/// stand-in), words 3-syllable only by an `-ed`/`-es` ending
+/// sentence's first word), words 3-syllable only by an `-ed`/`-es` ending
 /// (`-ing` deliberately not excused), hyphenated words unless a
 /// hyphen-separated part is 3+ syllables on its own, and words tokenisation
 /// marked never-complex (numbers, placeholder words).
@@ -231,11 +230,9 @@ fn is_complex(word: &Word, sentence_initial: bool) -> bool {
     }
     // A capitalised word not at sentence start is a proper name. A name
     // opening a sentence slips through and gets counted; accepted cost.
-    // A placeholder's capital is segmentation, not evidence of a name.
-    if !sentence_initial
-        && !word.placeholder_led
-        && word.text.chars().next().is_some_and(char::is_uppercase)
-    {
+    // A placeholder's capitalised stand-in is already stripped from the
+    // text, so any capital seen here is genuine source text.
+    if !sentence_initial && word.text.chars().next().is_some_and(char::is_uppercase) {
         return false;
     }
     // A hyphenated word is judged per part on syllables alone. The
@@ -386,16 +383,31 @@ mod tests {
         assert_eq!(complex_in("the re-created scene"), ["re-created"]);
     }
 
-    /// The stand-in's leading capital is a segmentation device and must
-    /// not reach the proper-name exclusion: a compound led by a
-    /// placeholder is still judged on its real parts.
+    /// A compound joined to a placeholder is judged and named by its real
+    /// remainder, joiners kept: the stand-in's characters (capital
+    /// included) are stripped before the complex-word rule ever sees the
+    /// word, and a remainder whose real part is under 3 syllables stays
+    /// simple however many syllables the stand-in would have added. The
+    /// bare placeholder and the bare-suffix join never reach a `complex:`
+    /// list, and a capitalised remainder is genuine source text, so the
+    /// proper-name exclusion applies to it as to any capitalised word.
     ///
     /// Author: Claude Opus 5
+    /// Author: Claude Fable 5
     #[test]
-    fn a_placeholder_led_compound_is_not_a_proper_name() {
+    fn a_placeholder_compound_is_judged_and_named_by_its_remainder() {
         assert_eq!(
             complex_in("a `foo`-oriented interpretation"),
-            ["X-oriented", "interpretation"]
+            ["-oriented", "interpretation"]
+        );
+        assert_eq!(complex_in("a multi-`foo` approach"), Vec::<String>::new());
+        assert_eq!(
+            complex_in("many `cargo test`s ran on `foo` today"),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            complex_in("the `foo`Bartender arrived"),
+            Vec::<String>::new()
         );
     }
 
