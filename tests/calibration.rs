@@ -90,7 +90,7 @@ fn pipeline_scores_the_passage_within_the_documented_divergence() {
         ]
     );
     let analysis = analyse(&found, 10.0, 10);
-    let report = render(MAUGHAM, &found, &analysis, 10, 10, false);
+    let report = render(&found, &analysis, 10, 10, false);
     assert!(
         report.starts_with("fog: 11.3 (target 10)\n"),
         "report was:\n{report}"
@@ -136,7 +136,7 @@ fn formula_scores_gunnings_counts_eleven_point_zero() {
     };
     // 0.4 x (118/8 + 100 x 15/118) = 10.9847...
     assert!((scored.fog - 10.984_745_762_711_864).abs() < 1e-9);
-    let report = render(&doc, &found, &analysis, 10, 10, false);
+    let report = render(&found, &analysis, 10, 10, false);
     assert!(
         report.starts_with("fog: 11.0 (target 10)\n"),
         "report was:\n{report}"

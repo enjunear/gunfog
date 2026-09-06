@@ -50,6 +50,12 @@ pub struct Word {
     /// can never be complex, whatever the syllable counter would make of
     /// their text.
     pub never_complex: bool,
+    /// The word as an excerpt shows it: the token's extracted prose, with
+    /// a placeholder's extent replaced by the construct it stood for, as
+    /// written in the source (`` `foo` ``-oriented shows as
+    /// `` `foo`-oriented ``). Markup that extraction removes can never
+    /// appear here; stand-in text never appears anywhere.
+    pub shown: String,
 }
 
 /// One sentence of prose: the scoring unit.
@@ -61,8 +67,7 @@ pub struct Sentence {
     /// sentence with no words is dropped.
     pub words: Vec<Word>,
     /// The sentence's byte extent in the markdown source, whitespace
-    /// trimmed, so the report stage can quote it as written (a placeholder
-    /// maps back to the construct it replaced).
+    /// trimmed; its start is what the source line number is scanned to.
     pub span: Range<usize>,
     /// The 1-based source line the sentence starts on.
     pub line: usize,
@@ -128,24 +133,33 @@ pub fn sentences(source: &str, events: &[ProseEvent]) -> Vec<Sentence> {
             let words = tokens
                 .iter()
                 .map(|token| {
-                    // The token with any stand-in bytes dropped: the real
-                    // remainder is what the word is judged and named by. A
+                    // The remainder is the token with any stand-in bytes
+                    // dropped: what the word is judged and named by. A
                     // token that is nothing but stand-in strips to empty,
                     // which is the bare placeholder's never-complex
-                    // contract. A token holds no whitespace, so its every
-                    // byte sits in some piece.
-                    let remainder: String = pieces
-                        .iter()
-                        .filter(|piece| !piece.placeholder)
-                        .filter_map(|piece| {
-                            let start = piece.text.start.max(token.start);
-                            let end = piece.text.end.min(token.end);
-                            (start < end).then(|| &text[start..end])
-                        })
-                        .collect();
+                    // contract. The shown form swaps each stand-in for the
+                    // construct it replaced instead, read from the source.
+                    // A token holds no whitespace, so its every byte sits
+                    // in some piece.
+                    let mut remainder = String::new();
+                    let mut shown = String::new();
+                    for piece in &pieces {
+                        let start = piece.text.start.max(token.start);
+                        let end = piece.text.end.min(token.end);
+                        if start >= end {
+                            continue;
+                        }
+                        if piece.placeholder {
+                            shown.push_str(&source[piece.source.clone()]);
+                        } else {
+                            remainder.push_str(&text[start..end]);
+                            shown.push_str(&text[start..end]);
+                        }
+                    }
                     Word {
                         never_complex: remainder.is_empty() || is_number(&remainder),
                         text: remainder,
+                        shown,
                     }
                 })
                 .collect();
@@ -644,6 +658,47 @@ mod tests {
                 "Run `cargo test`\nplus fish &amp; chips!"
             ],
         );
+    }
+
+    /// A placeholder word's shown form is the construct it replaced, as
+    /// written in the source; the stand-in text never appears.
+    ///
+    /// Author: Claude Fable 5
+    #[test]
+    fn a_placeholders_shown_form_is_the_construct_as_written() {
+        let found = parse("Run `cargo test` now.");
+        assert_eq!(found[0].words[1].shown, "`cargo test`");
+        let found = parse("See https://example.com/x now.");
+        assert_eq!(found[0].words[1].shown, "https://example.com/x");
+        let found = parse("See <https://example.com/x> now.");
+        assert_eq!(found[0].words[1].shown, "<https://example.com/x>");
+    }
+
+    /// A compound joining a placeholder to real text shows the whole
+    /// written form: construct and remainder together.
+    ///
+    /// Author: Claude Fable 5
+    #[test]
+    fn a_placeholder_compounds_shown_form_keeps_construct_and_remainder() {
+        let found = parse("A `foo`-oriented interpretation.");
+        assert_eq!(found[0].words[1].shown, "`foo`-oriented");
+        let found = parse("A multi-`foo` approach.");
+        assert_eq!(found[0].words[1].shown, "multi-`foo`");
+    }
+
+    /// A word's shown form is its extracted prose, not its raw source
+    /// bytes: emphasis markers are gone, an entity is decoded.
+    ///
+    /// Author: Claude Fable 5
+    #[test]
+    fn a_words_shown_form_is_its_extracted_prose() {
+        let found = parse("A **bold** caf&eacute; statement.");
+        let shown: Vec<&str> = found[0]
+            .words
+            .iter()
+            .map(|word| word.shown.as_str())
+            .collect();
+        assert_eq!(shown, vec!["A", "bold", "caf\u{e9}", "statement"]);
     }
 
     /// Author: Claude Fable 5

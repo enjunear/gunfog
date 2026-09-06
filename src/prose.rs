@@ -21,9 +21,9 @@ use pulldown_cmark::{Event, LinkType, Options, Parser, Tag, TagEnd};
 
 /// One item in the prose stream [`extract`] produces.
 ///
-/// `Text` and `Placeholder` carry their byte extent in the source, so the
-/// report stage can turn them into line numbers and quote sentences as
-/// written.
+/// `Text` and `Placeholder` carry their byte extent in the source, so
+/// later stages can turn them into line numbers and show a placeholder's
+/// construct as written.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProseEvent {
     /// A run of prose text.

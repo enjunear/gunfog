@@ -109,13 +109,14 @@ Over target, file input:
 
 ```
 fog: 12.4 (target 10)
-+0.82 26w L12 "The leave-one-out contribution of each sentence" complex: contribution, counterfactual
-+0.41 19w L30 "Selection proceeds in descending contribution until the" complex: descending, contribution
++0.82 26w L12 "The leave-one-out contribution of each sentence is measured…" complex: contribution, counterfactual
++0.41 19w L30 "Selection proceeds in descending contribution until the gap…" complex: descending, contribution
 +3 more, 1.2 grades remaining
 ```
 
 - Score line: `fog: <score> (target <target>)`, score at one decimal.
-- Hotspot line, in document order: contribution at two decimals with sign (it is a delta, not a grade claim), word count as `<N>w`, source line number as `L<N>` for `--file` input only, an excerpt of the sentence's first ~8 words as written in the source (quoted, `…` when truncated), then `complex:` and the sentence's complex words in document order, deduplicated case-insensitively keeping the first spelling — omitted when the sentence has none. Local per-sentence fog is never printed. In the excerpt, each control character the whitespace collapsing does not remove is replaced with one U+FFFD (`�`), so a scored document cannot write escape sequences to the terminal.
+- Hotspot line, in document order: contribution at two decimals with sign (it is a delta, not a grade claim), word count as `<N>w`, source line number as `L<N>` for `--file` input only, the quoted excerpt, then `complex:` and the sentence's complex words in document order, deduplicated case-insensitively keeping the first spelling — omitted when the sentence has none. Local per-sentence fog is never printed.
+- Excerpt: the sentence's first ~8 words of extracted prose, single-spaced, `…` appended when the sentence goes on. One excerpt word per counted word, so the excerpt stays consistent with the `<N>w` count, though whitespace a shown construct carries collapses to single spaces and splits that one word across space-separated parts; punctuation between words is not carried. Markup that extraction removes (emphasis markers, link targets, HTML) can never appear. A placeholder word shows the construct it replaced, as written in the source: an inline code span with its backticks, an autolink with its angle brackets, a bare URL as the URL; stand-in text never appears. Inner `"` characters pass through unescaped (only a shown construct can carry one in; a quote between words is punctuation and is not carried) — the excerpt sits between the outer quotes but is not parseable by splitting on quotes. Each control character the whitespace collapsing does not remove is replaced with one U+FFFD (`�`), so a scored document cannot write escape sequences to the terminal.
 - At or under target: the score line alone.
 
 ## Implementation
