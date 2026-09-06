@@ -2,12 +2,13 @@
 //! sentences of word tokens out.
 //!
 //! Between the unconditional boundaries the extraction stage emits (list
-//! item edges, hard breaks, paragraph ends), segmentation is UAX #29 via
-//! `unicode-segmentation`, followed by a merge pass over the fixed
-//! abbreviation list in `SPEC.md`. A soft break becomes a space before
-//! segmentation. Tokenisation is UAX #29 word bounds with a merge pass
-//! joining hyphenated compounds; contractions and number/version strings
-//! are single words as UAX #29 already leaves them.
+//! item edges, hard breaks, paragraph ends, removed block-level
+//! constructs), segmentation is UAX #29 via `unicode-segmentation`,
+//! followed by a merge pass over the fixed abbreviation list in
+//! `SPEC.md`. A soft break becomes a space before segmentation.
+//! Tokenisation is UAX #29 word bounds with a merge pass joining
+//! hyphenated compounds; contractions and number/version strings are
+//! single words as UAX #29 already leaves them.
 
 use std::ops::Range;
 
@@ -369,6 +370,19 @@ mod tests {
         assert_eq!(
             token_texts("- First here. Second here."),
             vec![vec!["First", "here"], vec!["Second", "here"]],
+        );
+    }
+
+    /// The fused-token failure the construct-boundary rule fixes: without
+    /// it the text either side of the code block reads as one sentence
+    /// holding the token `ones:It`.
+    ///
+    /// Author: Claude Fable 5
+    #[test]
+    fn a_code_block_in_a_tight_list_item_splits_the_sentence() {
+        assert_eq!(
+            token_texts("- trivial ones:\n  ```\n  code\n  ```\n  It continues."),
+            vec![vec!["trivial", "ones"], vec!["It", "continues"]],
         );
     }
 
