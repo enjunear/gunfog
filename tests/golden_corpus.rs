@@ -29,7 +29,7 @@ fn assert_sample(source: &str, sentence_words: &[usize], complex: &[&str], score
         .collect();
     assert_eq!(named, complex, "complex words in document order");
     let analysis = analyse(&found, 10.0, 10);
-    let report = render(source, &found, &analysis, 10, 10, false);
+    let report = render(&found, &analysis, 10, 10, false);
     assert!(
         report.starts_with(score_line),
         "expected {score_line:?}, report was:\n{report}"
@@ -219,7 +219,7 @@ fn textstat_survey_sample() {
     let found = sentences(source, &extract(source));
     let analysis = analyse(&found, 10.0, 10);
     assert_eq!(
-        render(source, &found, &analysis, 10, 10, false),
+        render(&found, &analysis, 10, 10, false),
         "fog: 7.7 (target 10)\n"
     );
 }

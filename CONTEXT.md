@@ -26,6 +26,9 @@ How much a sentence raises the document's fog score: the drop in the score if th
 **Hotspot**:
 A sentence the report singles out, by contribution, as driving the document's fog score above the target. Only a document scoring over target has hotspots.
 
+**Excerpt**:
+The quoted fragment that identifies a hotspot sentence: its first ~8 words of extracted prose, one excerpt word per counted word, with a placeholder word shown as the construct it replaced, as written in the source (whitespace a construct carries collapses to single spaces, so that one word can span several space-separated parts). Markup that extraction removes never appears in it. The text between the outer quotes is opaque: it is not parseable by splitting on quote characters.
+
 **Target**:
 The fog score threshold (default 10) that sets hotspot flagging and the exit code.
 

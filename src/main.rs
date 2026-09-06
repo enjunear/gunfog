@@ -65,14 +65,7 @@ fn run(cli: &Cli) -> std::io::Result<bool> {
     // Line numbers are source lines, which only --file input can honour.
     print!(
         "{}",
-        render(
-            &input,
-            &found,
-            &analysis,
-            cli.target,
-            cli.limit,
-            cli.file.is_some()
-        )
+        render(&found, &analysis, cli.target, cli.limit, cli.file.is_some())
     );
     Ok(analysis.passes())
 }
