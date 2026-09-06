@@ -48,6 +48,7 @@ Placeholders: each inline code span and each bare URL/autolink is replaced by on
 - Base segmentation is UAX #29 (the `unicode-segmentation` crate).
 - A list item's start and end are always sentence boundaries; normal segmentation applies inside the item, so one bullet can hold several sentences. Nested items follow the same rule.
 - A soft break becomes a space before segmentation. A hard break and a paragraph end are sentence boundaries, with or without terminal punctuation.
+- A removed block-level construct (heading, code block, table, HTML block) is a sentence boundary where it sat, including inside a tight list item, which has no paragraph edges of its own. An image is inline and is not a boundary: the prose either side of one is a single sentence.
 - An abbreviation merge pass joins the one UAX #29 failure class (abbreviation followed by a capitalised word, e.g. `Dr. Smith`). The list is fixed and test-covered: **Mr, Mrs, Ms, Dr, Prof, St, e.g., i.e., cf., vs.** It deliberately excludes `etc.`, which legitimately ends sentences.
 - A placeholder word's stand-in text is capitalised, so a placeholder after a sentence terminator opens a sentence. UAX #29 suppresses a break before a lowercase follower, which would otherwise merge every code-span-initial or URL-initial sentence into the one before it. The case is a segmentation device and nothing more. It never makes a word count as a proper name.
 

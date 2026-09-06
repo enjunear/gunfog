@@ -8,7 +8,7 @@ A CLI that scores prose with the Gunning fog index and reports hotspots so a cod
 The text that remains after the constructs gunfog never scores (headings, code blocks, tables, image alt text, raw HTML, task-list markers) are removed. The fog formula only ever sees prose.
 
 **Sentence**:
-The scoring unit. A span of prose bounded by UAX #29 sentence boundaries, paragraph ends, and hard breaks. A list item's start and end are always sentence boundaries, and normal segmentation applies inside the item.
+The scoring unit. A span of prose bounded by UAX #29 sentence boundaries, paragraph ends, and hard breaks. A list item's start and end are always sentence boundaries, and normal segmentation applies inside the item. The position of each removed block-level construct (heading, code block, table, HTML block) is a boundary too.
 
 **Placeholder word**:
 A single simple word standing in for an inline code span or bare URL, so the sentence keeps its grammatical slot and length without the token ever counting as complex. A word that joins a placeholder to real text is judged and named by its real remainder alone, joiners kept (`` `foo` ``-oriented is the word `-oriented`); stand-in text never reaches output. The stand-in is capitalised, so a placeholder after a sentence terminator opens a sentence instead of being swallowed by the one before it.

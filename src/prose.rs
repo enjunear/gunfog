@@ -42,8 +42,10 @@ pub enum ProseEvent {
     },
     /// A soft break; becomes a space before segmentation.
     SoftBreak,
-    /// A sentence boundary: a hard break, a paragraph end, or a list item's
-    /// start or end. Never emitted first or twice in a row.
+    /// A sentence boundary: a hard break, a paragraph end, a list item's
+    /// start or end, or a removed block-level construct (heading, code
+    /// block, table, HTML block) where it sits. Never emitted first or
+    /// twice in a row.
     Boundary,
 }
 
@@ -88,13 +90,23 @@ pub fn extract(markdown: &str) -> Vec<ProseEvent> {
     let mut consumed_until = 0usize;
     for (index, (event, range)) in parsed.into_iter().enumerate() {
         match event {
+            // A removed block-level construct is also a sentence boundary:
+            // a tight list item emits no paragraph events, so without one
+            // the text either side of the construct would fuse. Image is
+            // the one inline construct in this list and emits none; the
+            // prose either side of an image is a single sentence.
             Event::Start(
-                Tag::Heading { .. }
+                tag @ (Tag::Heading { .. }
                 | Tag::CodeBlock(_)
                 | Tag::Table(_)
                 | Tag::Image { .. }
-                | Tag::HtmlBlock,
-            ) => skip_depth += 1,
+                | Tag::HtmlBlock),
+            ) => {
+                if !matches!(tag, Tag::Image { .. }) {
+                    push_boundary(&mut events);
+                }
+                skip_depth += 1;
+            }
             Event::End(
                 TagEnd::Heading(_)
                 | TagEnd::CodeBlock
@@ -1116,6 +1128,56 @@ mod tests {
         assert_eq!(
             extract("- One here. Two here."),
             vec![text("One here. Two here.", 2), ProseEvent::Boundary],
+        );
+    }
+
+    /// A tight list item has no paragraph events, so the construct itself
+    /// must supply the boundary between the text either side of it.
+    ///
+    /// Author: Claude Fable 5
+    #[test]
+    fn code_block_in_a_tight_list_item_is_a_boundary() {
+        assert_eq!(
+            extract("- Alpha one:\n  ```\n  code\n  ```\n  Beta two."),
+            vec![
+                text("Alpha one:", 2),
+                ProseEvent::Boundary,
+                text("Beta two.", 34),
+                ProseEvent::Boundary,
+            ],
+        );
+    }
+
+    /// Author: Claude Fable 5
+    #[test]
+    fn heading_in_a_tight_list_item_is_a_boundary() {
+        assert_eq!(
+            extract("- Alpha one:\n  # Heading here\n  Beta two."),
+            vec![
+                text("Alpha one:", 2),
+                ProseEvent::Boundary,
+                text("Beta two.", 32),
+                ProseEvent::Boundary,
+            ],
+        );
+    }
+
+    /// An indented code block cannot interrupt a paragraph, so no document
+    /// exists where it alone separates two text runs; a heading opens
+    /// block context for it here. What this pins is the collapse: two
+    /// adjacent construct boundaries yield one.
+    ///
+    /// Author: Claude Fable 5
+    #[test]
+    fn adjacent_construct_boundaries_collapse_into_one() {
+        assert_eq!(
+            extract("- Alpha one:\n  # Heading\n      let x = 1;\n  Beta two."),
+            vec![
+                text("Alpha one:", 2),
+                ProseEvent::Boundary,
+                text("Beta two.", 44),
+                ProseEvent::Boundary,
+            ],
         );
     }
 
