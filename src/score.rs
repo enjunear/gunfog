@@ -12,7 +12,7 @@
 use std::collections::HashSet;
 
 use crate::segment::Sentence;
-use crate::syllable::complex_words;
+use crate::syllable::{complex_fragments, complex_words};
 
 /// The floor: the minimum prose length that receives a fog score, exact
 /// and fixed. Exactly 100 words scores; 99 refuses.
@@ -99,8 +99,9 @@ pub struct Refusal {
     /// The prose word count that fell short. Zero-prose input lands here
     /// too, with a count of 0.
     pub words: usize,
-    /// Every complex word in the document, deduplicated case-insensitively
-    /// keeping the first spelling, in document order.
+    /// Every complex word in the document, named by fragment,
+    /// deduplicated case-insensitively keeping the first spelling, in
+    /// document order.
     pub complex: Vec<String>,
 }
 
@@ -274,9 +275,9 @@ fn named_complex(sentences: &[Sentence]) -> Vec<String> {
     let mut seen = HashSet::new();
     let mut named = Vec::new();
     for sentence in sentences {
-        for word in complex_words(sentence) {
-            if seen.insert(word.text.to_lowercase()) {
-                named.push(word.text.clone());
+        for fragment in complex_fragments(sentence) {
+            if seen.insert(fragment.to_lowercase()) {
+                named.push(fragment.to_string());
             }
         }
     }

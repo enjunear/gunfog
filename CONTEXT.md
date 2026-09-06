@@ -11,7 +11,11 @@ The text that remains after the constructs gunfog never scores (headings, code b
 The scoring unit. A span of prose bounded by UAX #29 sentence boundaries, paragraph ends, and hard breaks. A list item's start and end are always sentence boundaries, and normal segmentation applies inside the item. The position of each removed block-level construct (heading, code block, table, HTML block) is a boundary too.
 
 **Placeholder word**:
-A single simple word standing in for an inline code span or bare URL, so the sentence keeps its grammatical slot and length without the token ever counting as complex. A word that joins a placeholder to real text is judged and named by its real remainder alone, joiners kept (`` `foo` ``-oriented is the word `-oriented`); stand-in text never reaches output. The stand-in is capitalised, so a placeholder after a sentence terminator opens a sentence instead of being swallowed by the one before it.
+A single simple word standing in for an inline code span or bare URL, so the sentence keeps its grammatical slot and length without the token ever counting as complex. Within a token a placeholder is a boundary: a word that joins a placeholder to real text is judged and named by its remainder fragments (`` `foo` ``-oriented is the fragment `-oriented`; re-`` `foo` ``created is the fragments `re-` and `created`, never a fused `re-created`). The token is still one word, complex when any fragment is; stand-in text never reaches output. The stand-in is capitalised, so a placeholder after a sentence terminator opens a sentence instead of being swallowed by the one before it.
+
+**Remainder fragment**:
+One contiguous run of real text left in a token after its placeholder stand-ins are stripped, joiners kept. Complexity is judged per fragment and a `complex:` list names fragments, so a printed name is always findable in the source by substring search. A word without a placeholder is one fragment; a bare placeholder has none.
+_Avoid_: remainder (alone)
 
 **Complex word**:
 A word of three or more syllables, after Gunning's own exclusions (proper names, -ed/-es inflations). A hyphenated word is complex only if one of its hyphen-separated parts is 3+ syllables on its own.
@@ -27,7 +31,7 @@ How much a sentence raises the document's fog score: the drop in the score if th
 A sentence the report singles out, by contribution, as driving the document's fog score above the target. Only a document scoring over target has hotspots.
 
 **Excerpt**:
-The quoted fragment that identifies a hotspot sentence: its first ~8 words of extracted prose, one excerpt word per counted word, with a placeholder word shown as the construct it replaced, as written in the source (whitespace a construct carries collapses to single spaces, so that one word can span several space-separated parts). Markup that extraction removes never appears in it. The text between the outer quotes is opaque: it is not parseable by splitting on quote characters.
+The quoted snippet that identifies a hotspot sentence: its first ~8 words of extracted prose, one excerpt word per counted word, with a placeholder word shown as the construct it replaced, as written in the source (whitespace a construct carries collapses to single spaces, so that one word can span several space-separated parts). Markup that extraction removes never appears in it. The text between the outer quotes is opaque: it is not parseable by splitting on quote characters.
 
 **Target**:
 The fog score threshold (default 10) that sets hotspot flagging and the exit code.

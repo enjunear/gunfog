@@ -12,7 +12,7 @@ use gunfog::prose::extract;
 use gunfog::report::render;
 use gunfog::score::{Analysis, analyse};
 use gunfog::segment::sentences;
-use gunfog::syllable::complex_words;
+use gunfog::syllable::{complex_fragments, complex_words};
 
 /// The passage as the 1968 edition prints it, with one deliberate change:
 /// Gunning notes that "the third sentence is actually three complete
@@ -63,10 +63,7 @@ fn segmentation_matches_gunnings_published_counts() {
 #[test]
 fn pipeline_scores_the_passage_within_the_documented_divergence() {
     let found = sentences(MAUGHAM, &extract(MAUGHAM));
-    let complex: Vec<&str> = found
-        .iter()
-        .flat_map(|s| complex_words(s).into_iter().map(|w| w.text.as_str()))
-        .collect();
+    let complex: Vec<&str> = found.iter().flat_map(complex_fragments).collect();
     // Gunning's 15, in document order, with `people` the counter's one miss.
     assert_eq!(
         complex,

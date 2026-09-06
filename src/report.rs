@@ -9,7 +9,7 @@
 
 use crate::score::{Analysis, FLOOR, Refusal, Scored, printed};
 use crate::segment::{Sentence, Word};
-use crate::syllable::complex_words;
+use crate::syllable::complex_fragments;
 use std::collections::HashSet;
 
 /// How many leading words a hotspot excerpt shows.
@@ -75,13 +75,13 @@ fn scored_text(sentences: &[Sentence], scored: &Scored, target: usize, with_line
         out.push('"');
         out.push_str(&excerpt(&sentence.words));
         out.push('"');
-        let complex = complex_words(sentence);
+        let complex = complex_fragments(sentence);
         if !complex.is_empty() {
             let mut seen = HashSet::new();
             let names: Vec<String> = complex
                 .iter()
-                .filter(|word| seen.insert(word.text.to_lowercase()))
-                .map(|word| sanitise(&word.text))
+                .filter(|fragment| seen.insert(fragment.to_lowercase()))
+                .map(|fragment| sanitise(fragment))
                 .collect();
             out.push_str(" complex: ");
             out.push_str(&names.join(", "));

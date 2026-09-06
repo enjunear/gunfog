@@ -10,11 +10,11 @@
 //! CMUdict.
 //!
 //! A complex word has 3+ syllables after Gunning's exclusions (proper
-//! names, `-ed`/`-es` inflations, hyphenated words judged per part). The
-//! exclusions are applied here, inside [`complex_words`], so an excused
-//! word can never leak into a `complex:` list downstream.
+//! names, `-ed`/`-es` inflations, hyphenated words judged per part),
+//! judged per remainder fragment. The exclusions are applied here, so an
+//! excused word can never leak into a `complex:` list downstream.
 
-use crate::segment::{Sentence, Word};
+use crate::segment::{Fragment, Sentence, Word};
 
 /// Rules matched with `str::contains`, and the count adjustment each makes.
 const CONTAINS_RULES: [(&str, i32); 10] = [
@@ -187,12 +187,17 @@ fn adjustments(word: &str) -> i32 {
 
 /// The words of a sentence that count as complex, in sentence order.
 ///
-/// Gunning's exclusions are applied here, so a word this function omits
-/// never reaches a `complex:` list: proper names (capitalised, not the
-/// sentence's first word), words 3-syllable only by an `-ed`/`-es` ending
-/// (`-ing` deliberately not excused), hyphenated words unless a
-/// hyphen-separated part is 3+ syllables on its own, and words tokenisation
-/// marked never-complex (numbers, placeholder words).
+/// A placeholder is a boundary within its token, so a word is judged per
+/// remainder fragment and is complex when any fragment is; it still
+/// counts once, because the formula counts words. Gunning's exclusions
+/// are applied here per fragment, so a fragment this module excuses never
+/// reaches a `complex:` list: proper names (capitalised, not the
+/// sentence's opening fragment), fragments 3-syllable only by an
+/// `-ed`/`-es` ending (`-ing` deliberately not excused), hyphenated
+/// fragments unless a hyphen-separated part is 3+ syllables on its own,
+/// and fragments tokenisation marked never-complex (numbers), with a
+/// bare placeholder holding no fragments at all. The names a `complex:`
+/// list prints are [`complex_fragments`].
 ///
 /// ```
 /// use gunfog::prose::extract;
@@ -201,13 +206,7 @@ fn adjustments(word: &str) -> i32 {
 ///
 /// let md = "Claude underestimated the beautiful, well-tuned heuristics.";
 /// let sentence = &sentences(md, &extract(md))[0];
-/// let complex: Vec<&str> = complex_words(sentence)
-///     .iter()
-///     .map(|word| word.text.as_str())
-///     .collect();
-/// // "Claude" opens the sentence, so the proper-name exclusion cannot
-/// // excuse it, but its two syllables keep it simple anyway.
-/// assert_eq!(complex, ["underestimated", "beautiful", "heuristics"]);
+/// assert_eq!(complex_words(sentence).len(), 3);
 /// ```
 ///
 /// Author: Claude Fable 5
@@ -216,40 +215,86 @@ pub fn complex_words(sentence: &Sentence) -> Vec<&Word> {
         .words
         .iter()
         .enumerate()
-        .filter(|(index, word)| is_complex(word, *index == 0))
+        .filter(|(index, word)| complex_in_word(word, *index == 0).next().is_some())
         .map(|(_, word)| word)
         .collect()
 }
 
-/// Applies the complex-word rule to one word.
+/// The complex fragments of a sentence, in sentence order: the names a
+/// `complex:` list prints. Each name is a contiguous run of real source
+/// text, so it is findable in the document by substring search; a word
+/// holding an interior placeholder can contribute several names, never a
+/// fusion of them.
+///
+/// ```
+/// use gunfog::prose::extract;
+/// use gunfog::segment::sentences;
+/// use gunfog::syllable::complex_fragments;
+///
+/// let md = "Claude underestimated the beautiful, well-tuned heuristics.";
+/// let sentence = &sentences(md, &extract(md))[0];
+/// // "Claude" opens the sentence, so the proper-name exclusion cannot
+/// // excuse it, but its two syllables keep it simple anyway.
+/// assert_eq!(
+///     complex_fragments(sentence),
+///     ["underestimated", "beautiful", "heuristics"]
+/// );
+/// ```
 ///
 /// Author: Claude Fable 5
-fn is_complex(word: &Word, sentence_initial: bool) -> bool {
-    if word.never_complex {
+pub fn complex_fragments(sentence: &Sentence) -> Vec<&str> {
+    sentence
+        .words
+        .iter()
+        .enumerate()
+        .flat_map(|(index, word)| {
+            complex_in_word(word, index == 0).map(|fragment| fragment.text.as_str())
+        })
+        .collect()
+}
+
+/// The complex fragments of one word. `first_word` marks the sentence's
+/// first token, whose opening fragment is the only sentence-initial one.
+///
+/// Author: Claude Fable 5
+fn complex_in_word(word: &Word, first_word: bool) -> impl Iterator<Item = &Fragment> {
+    word.fragments
+        .iter()
+        .enumerate()
+        .filter(move |(nth, fragment)| is_complex(fragment, first_word && *nth == 0))
+        .map(|(_, fragment)| fragment)
+}
+
+/// Applies the complex-word rule to one fragment. `sentence_initial` is
+/// true only for the opening fragment of a sentence's first word.
+///
+/// Author: Claude Fable 5
+fn is_complex(fragment: &Fragment, sentence_initial: bool) -> bool {
+    if fragment.never_complex {
         return false;
     }
-    // A capitalised word not at sentence start is a proper name. A name
-    // opening a sentence slips through and gets counted; accepted cost.
-    // A placeholder's capitalised stand-in is already stripped from the
-    // text, so any capital seen here is genuine source text.
-    if !sentence_initial && word.text.chars().next().is_some_and(char::is_uppercase) {
+    // A capitalised fragment not at sentence start is a proper name. A
+    // name opening a sentence slips through and gets counted; accepted
+    // cost. A placeholder's capitalised stand-in never reaches a
+    // fragment, so any capital seen here is genuine source text.
+    if !sentence_initial && fragment.text.chars().next().is_some_and(char::is_uppercase) {
         return false;
     }
-    // A hyphenated word is judged per part on syllables alone. The
+    // A hyphenated fragment is judged per part on syllables alone. The
     // `-ed`/`-es` excusal below is for inflection lifting a whole word
     // over the line; `docs/research/hyphenated-words.md` §6 keeps
     // `agent-oriented` complex on the strength of `oriented`.
-    if word.text.contains('-') {
-        return word.text.split('-').any(|part| syllables(part) >= 3);
+    if fragment.text.contains('-') {
+        return fragment.text.split('-').any(|part| syllables(part) >= 3);
     }
-    if syllables(&word.text) < 3 {
+    if syllables(&fragment.text) < 3 {
         return false;
     }
-    let lower = word.text.to_ascii_lowercase();
+    let lower = fragment.text.to_ascii_lowercase();
     if (lower.ends_with("ed") || lower.ends_with("es"))
         // The matched suffix is two ASCII bytes, so the slice is in bounds
         // and on a character boundary whatever precedes it.
-        && syllables(&word.text[..word.text.len() - 2]) < 3
+        && syllables(&fragment.text[..fragment.text.len() - 2]) < 3
     {
         return false;
     }
@@ -268,11 +313,7 @@ mod tests {
     fn complex_in(md: &str) -> Vec<String> {
         sentences(md, &extract(md))
             .iter()
-            .flat_map(|sentence| {
-                complex_words(sentence)
-                    .into_iter()
-                    .map(|word| word.text.clone())
-            })
+            .flat_map(|sentence| complex_fragments(sentence).into_iter().map(str::to_string))
             .collect()
     }
 
@@ -409,6 +450,37 @@ mod tests {
             complex_in("the `foo`Bartender arrived"),
             Vec::<String>::new()
         );
+    }
+
+    /// An interior placeholder is a boundary: each fragment is judged on
+    /// its own, so no fused spelling absent from the source is ever
+    /// judged or named, and the whole-word exclusions apply per fragment
+    /// (`created` alone is an `-ed` inflation, where the genuinely
+    /// hyphenated `re-created` above stays complex on its second part).
+    ///
+    /// Author: Claude Fable 5
+    #[test]
+    fn an_interior_placeholder_judges_and_names_each_fragment_alone() {
+        assert_eq!(
+            complex_in("the re-`foo`created scene"),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            complex_in("a `foo`interpretation`baz`celebration here"),
+            ["interpretation", "celebration"]
+        );
+    }
+
+    /// A word with two complex fragments is one complex word: the
+    /// formula counts words, while the `complex:` list names fragments.
+    ///
+    /// Author: Claude Fable 5
+    #[test]
+    fn a_multi_fragment_word_counts_once() {
+        let md = "a `foo`interpretation`baz`celebration here";
+        let found = sentences(md, &extract(md));
+        assert_eq!(complex_words(&found[0]).len(), 1);
+        assert_eq!(complex_fragments(&found[0]).len(), 2);
     }
 
     /// Author: Claude Fable 5

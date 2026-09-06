@@ -12,7 +12,7 @@ No manifest means the repo is still planning documents, and the "commands" below
 
 ## Where the decisions live
 
-- `CONTEXT.md` is the glossary and the authoritative vocabulary (prose, sentence, word, complex word, placeholder word, contribution, hotspot, target, floor). 
+- `CONTEXT.md` is the glossary and the authoritative vocabulary (prose, sentence, word, complex word, placeholder word, remainder fragment, contribution, hotspot, target, floor). 
     Read it before writing code or docs that use those terms, and keep the terms out of any other meaning.
 - `SPEC.md` states what to build, without rationale. 
     It sits at the repo root; if it is not there, `git log --all --oneline -- SPEC.md` names the branch carrying it and `git show <branch>:SPEC.md` reads it.
