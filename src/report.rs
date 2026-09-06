@@ -56,7 +56,8 @@ pub fn render(
 /// The score line, the hotspot lines in document order, and the tail.
 ///
 /// Each hotspot's `complex:` list is deduplicated case-insensitively,
-/// first spelling kept, mirroring the refusal line.
+/// first spelling kept, mirroring the refusal line, and each word is
+/// [`sanitise`]d on its way out.
 ///
 /// Author: Claude Fable 5
 fn scored_text(sentences: &[Sentence], scored: &Scored, target: usize, with_lines: bool) -> String {
@@ -77,10 +78,10 @@ fn scored_text(sentences: &[Sentence], scored: &Scored, target: usize, with_line
         let complex = complex_words(sentence);
         if !complex.is_empty() {
             let mut seen = HashSet::new();
-            let names: Vec<&str> = complex
+            let names: Vec<String> = complex
                 .iter()
                 .filter(|word| seen.insert(word.text.to_lowercase()))
-                .map(|word| word.text.as_str())
+                .map(|word| sanitise(&word.text))
                 .collect();
             out.push_str(" complex: ");
             out.push_str(&names.join(", "));
@@ -97,14 +98,16 @@ fn scored_text(sentences: &[Sentence], scored: &Scored, target: usize, with_line
 }
 
 /// The refusal: the word count always, the complex words when any exist
-/// and the limit allows a second line.
+/// and the limit allows a second line. Each word is [`sanitise`]d on its
+/// way out.
 ///
 /// Author: Claude Fable 5
 fn refusal_text(refusal: &Refusal, limit: usize) -> String {
     let mut out = format!("no score: {} words (min {FLOOR})\n", refusal.words);
     if limit != 0 && !refusal.complex.is_empty() {
+        let names: Vec<String> = refusal.complex.iter().map(|word| sanitise(word)).collect();
         out.push_str("complex: ");
-        out.push_str(&refusal.complex.join(", "));
+        out.push_str(&names.join(", "));
         out.push('\n');
     }
     out
@@ -114,25 +117,78 @@ fn refusal_text(refusal: &Refusal, limit: usize) -> String {
 /// single-spaced, `…` appended when the sentence goes on: one excerpt
 /// word per counted word, so the excerpt stays consistent with the
 /// `<N>w` count. Whitespace a shown construct carries collapses to
-/// single spaces, and each control character that collapsing does not
-/// remove is replaced with one `\u{FFFD}`, so a scored document cannot
-/// write escape sequences into the caller's terminal.
+/// single spaces, and what collapsing does not remove is [`sanitise`]d.
 ///
 /// Author: Claude Fable 5
 fn excerpt(words: &[Word]) -> String {
-    let mut out: String = words
-        .iter()
-        .take(EXCERPT_WORDS)
-        .flat_map(|word| word.shown.split_whitespace())
-        .collect::<Vec<&str>>()
-        .join(" ")
-        .chars()
-        .map(|c| if c.is_control() { '\u{FFFD}' } else { c })
-        .collect();
+    let mut out = sanitise(
+        &words
+            .iter()
+            .take(EXCERPT_WORDS)
+            .flat_map(|word| word.shown.split_whitespace())
+            .collect::<Vec<&str>>()
+            .join(" "),
+    );
     if words.len() > EXCERPT_WORDS {
         out.push('…');
     }
     out
+}
+
+/// Replaces each Unicode control (`Cc`) or format (`Cf`) character in
+/// document-derived text with one `\u{FFFD}`, one replacement per
+/// character. Every stretch of the report that quotes the document (the
+/// excerpt and both `complex:` print sites) passes through here, so
+/// output safety never rests on what tokenisation happens to split: a
+/// scored document cannot write escape sequences into the caller's
+/// terminal, reorder a line with a bidi override, or hide words with
+/// zero-width characters.
+///
+/// Author: Claude Fable 5
+fn sanitise(text: &str) -> String {
+    text.chars()
+        .map(|c| {
+            if c.is_control() || is_format(c) {
+                '\u{FFFD}'
+            } else {
+                c
+            }
+        })
+        .collect()
+}
+
+/// Whether the character is in Unicode general category `Cf` (Format):
+/// the bidi overrides and isolates, the zero-width characters, the soft
+/// hyphen, and the rest of the class. The standard library has no
+/// category query, so the ranges are transcribed from UnicodeData.txt
+/// 16.0.0.
+///
+/// Author: Claude Fable 5
+fn is_format(c: char) -> bool {
+    matches!(
+        c,
+        '\u{00AD}'
+            | '\u{0600}'..='\u{0605}'
+            | '\u{061C}'
+            | '\u{06DD}'
+            | '\u{070F}'
+            | '\u{0890}'..='\u{0891}'
+            | '\u{08E2}'
+            | '\u{180E}'
+            | '\u{200B}'..='\u{200F}'
+            | '\u{202A}'..='\u{202E}'
+            | '\u{2060}'..='\u{2064}'
+            | '\u{2066}'..='\u{206F}'
+            | '\u{FEFF}'
+            | '\u{FFF9}'..='\u{FFFB}'
+            | '\u{110BD}'
+            | '\u{110CD}'
+            | '\u{13430}'..='\u{1343F}'
+            | '\u{1BCA0}'..='\u{1BCA3}'
+            | '\u{1D173}'..='\u{1D17A}'
+            | '\u{E0001}'
+            | '\u{E0020}'..='\u{E007F}'
+    )
 }
 
 #[cfg(test)]
@@ -273,15 +329,59 @@ mod tests {
         );
     }
 
+    /// Format characters reach the report two ways: most have
+    /// Word_Break Format, which UAX #29 rule WB4 keeps mid-token, and
+    /// any of them can hide in a shown construct's source bytes (the
+    /// zero-width space is excluded from WB4, so the code span is its
+    /// only route). Each becomes one replacement.
+    ///
     /// Author: Claude Fable 5
     #[test]
-    fn rendered_report_carries_no_control_bytes() {
-        // One ESC sits bare in prose, where tokenisation already drops it;
-        // the other hides inside a code span, whose source bytes the
-        // excerpt shows, so it must surface as the replacement character.
-        // The "day" padding lifts the document over the 100-word floor.
+    fn excerpt_replaces_format_characters_one_for_one() {
+        assert_eq!(
+            excerpt(&words_of("The coun\u{202E}terfactual case.")),
+            "The coun\u{FFFD}terfactual case"
+        );
+        assert_eq!(
+            excerpt(&words_of("The soft\u{00AD}hyphen stays mid-word.")),
+            "The soft\u{FFFD}hyphen stays mid-word"
+        );
+        assert_eq!(
+            excerpt(&words_of("Run `a\u{200B}b` now.")),
+            "Run `a\u{FFFD}b` now"
+        );
+        assert_eq!(
+            excerpt(&words_of("A dou\u{202E}\u{202E}bled override.")),
+            "A dou\u{FFFD}\u{FFFD}bled override"
+        );
+    }
+
+    /// Under the floor the `complex:` line is the whole actionable
+    /// output, and it quotes document text like any other print site.
+    ///
+    /// Author: Claude Fable 5
+    #[test]
+    fn refusal_complex_line_replaces_format_characters() {
+        let md = "The coun\u{202E}terfactual implementation.";
+        let found = sentences(md, &extract(md));
+        let analysis = analyse(&found, 10.0, 10);
+        let report = render(&found, &analysis, 10, 10, false);
+        assert!(
+            report.contains("complex: coun\u{FFFD}terfactual, implementation"),
+            "refusal line should replace the override: {report}"
+        );
+    }
+
+    /// Author: Claude Fable 5
+    #[test]
+    fn rendered_report_carries_no_control_or_format_characters() {
+        // The ESC hides inside a code span, whose source bytes the
+        // excerpt shows; the bidi override sits inside a complex word,
+        // where tokenisation keeps it (UAX #29 rule WB4), so it reaches
+        // both the excerpt and the complex: list. The "day" padding
+        // lifts the document over the 100-word floor.
         let md = format!(
-            "The \x1b[31mcounterfactual implementation runs `red\x1b[0m` and recalculates {}sea. Bravo {}sea.",
+            "The coun\u{202E}terfactual implementation runs `red\x1b[0m` and recalculates {}sea. Bravo {}sea.",
             "day ".repeat(100),
             "day ".repeat(8)
         );
@@ -289,21 +389,20 @@ mod tests {
         let analysis = analyse(&found, 10.0, 10);
         let report = render(&found, &analysis, 10, 10, false);
         assert!(
-            !report.chars().any(|c| c.is_control() && c != '\n'),
-            "control characters leaked into: {report}"
+            !report
+                .chars()
+                .any(|c| (c.is_control() && c != '\n') || is_format(c)),
+            "control or format characters leaked into: {report}"
         );
         assert!(
             report.contains(
-                "The 31mcounterfactual implementation runs `red\u{FFFD}[0m` and recalculates day…"
+                "The coun\u{FFFD}terfactual implementation runs `red\u{FFFD}[0m` and recalculates day…"
             ),
-            "excerpt should drop the bare ESC token-wise and replace the code span's: {report}"
+            "excerpt should replace the override and the code span's ESC: {report}"
         );
-        // Tokenisation splits on the ESC byte, so the complex: list names
-        // the token with the colour code's digits attached but never the
-        // ESC itself.
         assert!(
-            report.contains("complex: 31mcounterfactual"),
-            "complex list should split at the ESC byte: {report}"
+            report.contains("complex: coun\u{FFFD}terfactual"),
+            "the complex: list should carry the replacement, not the raw override: {report}"
         );
     }
 }
