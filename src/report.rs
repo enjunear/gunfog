@@ -118,13 +118,19 @@ fn refusal_text(refusal: &Refusal, limit: usize) -> String {
 
 /// The sentence's first [`EXCERPT_WORDS`] whitespace-separated words as
 /// written in the source, single-spaced, `…` appended when the sentence
-/// goes on.
+/// goes on. Control characters the whitespace splitting leaves behind are
+/// replaced with one `\u{FFFD}` each, so a scored document cannot write
+/// escape sequences into the caller's terminal.
 ///
 /// Author: Claude Fable 5
 fn excerpt(sentence: &str) -> String {
     let mut words = sentence.split_whitespace();
     let shown: Vec<&str> = words.by_ref().take(EXCERPT_WORDS).collect();
-    let mut out = shown.join(" ");
+    let mut out: String = shown
+        .join(" ")
+        .chars()
+        .map(|c| if c.is_control() { '\u{FFFD}' } else { c })
+        .collect();
     if words.next().is_some() {
         out.push('…');
     }
@@ -183,5 +189,47 @@ mod tests {
     #[test]
     fn excerpt_single_spaces_soft_wrapped_source() {
         assert_eq!(excerpt("wrapped\nacross   lines"), "wrapped across lines");
+    }
+
+    /// Author: Claude Fable 5
+    #[test]
+    fn excerpt_replaces_control_characters_one_for_one() {
+        assert_eq!(
+            excerpt("The \x1b[31mred\x1b[0m word"),
+            "The \u{FFFD}[31mred\u{FFFD}[0m word"
+        );
+        // Consecutive controls become one replacement each, not one total.
+        assert_eq!(excerpt("a\x1b\x1bb \x00c"), "a\u{FFFD}\u{FFFD}b \u{FFFD}c");
+        assert_eq!(excerpt("del\x7fete"), "del\u{FFFD}ete");
+    }
+
+    /// Author: Claude Fable 5
+    #[test]
+    fn rendered_report_carries_no_control_bytes() {
+        // The ESC sequences sit inside the top hotspot's sentence; the
+        // "day" padding lifts the document over the 100-word floor.
+        let md = format!(
+            "The \x1b[31mcounterfactual\x1b[0m implementation recalculates {}sea. Bravo {}sea.",
+            "day ".repeat(100),
+            "day ".repeat(8)
+        );
+        let found = sentences(&md, &extract(&md));
+        let analysis = analyse(&found, 10.0, 10);
+        let report = render(&md, &found, &analysis, 10, 10, false);
+        assert!(
+            !report.chars().any(|c| c.is_control() && c != '\n'),
+            "control characters leaked into: {report}"
+        );
+        assert!(
+            report.contains("\u{FFFD}[31mcounterfactual"),
+            "excerpt should show the replacement character: {report}"
+        );
+        // Tokenisation splits on the ESC byte, so the complex: list names
+        // the token with the colour code's digits attached but never the
+        // ESC itself.
+        assert!(
+            report.contains("complex: 31mcounterfactual"),
+            "complex list should split at the ESC byte: {report}"
+        );
     }
 }
