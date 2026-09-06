@@ -2,7 +2,7 @@
 
 `gunfog` is a CLI that scores prose with the Gunning fog index and reports hotspots so a coding agent can revise its own writing. Token-efficient output is the prime directive: every printed character must earn its place in an agent's context window.
 
-Terms (prose, sentence, word, complex word, placeholder word, contribution, hotspot, target, floor) are defined in [CONTEXT.md](CONTEXT.md). Rationale and measurements live in `docs/research/`; this file states only what to build.
+Terms (prose, sentence, word, complex word, placeholder word, remainder fragment, contribution, hotspot, target, floor) are defined in [CONTEXT.md](CONTEXT.md). Rationale and measurements live in `docs/research/`; this file states only what to build.
 
 ## CLI contract
 
@@ -41,7 +41,7 @@ Scored as prose:
 - Link text (the URL contributes nothing)
 - Emphasis, strong, and strikethrough are transparent: just their text
 
-Placeholders: each inline code span and each bare URL/autolink is replaced by one placeholder word. It counts as exactly one word of one syllable and can never be complex. A compound joining a placeholder to real text is still one word, but it is judged and named by its real remainder with the stand-in stripped, joiners kept: `` `foo` ``-oriented is judged on and printed in a `complex:` list as `-oriented`, and multi-`` `foo` `` is judged on `multi-` (not complex). Stand-in text never reaches output. (Deleting these tokens instead would make sentences look shorter than they read.) A bare URL starts at `http://` or `https://` (any letter case) at a word boundary (the start of the document, or after a non-alphanumeric character) and runs to the next whitespace or `<`; inside link text it stops at the text's end. Trailing punctuation goes back to the sentence: GFM's extended-autolink trimming (its punctuation and quote set, an unbalanced trailing `)`, and a `;` closing an entity reference, which takes the whole entity with it), plus `…`; a `;` closing no entity stays in the URL. Other schemes and scheme-less hosts (`www.…`) stay text.
+Placeholders: each inline code span and each bare URL/autolink is replaced by one placeholder word. It counts as exactly one word of one syllable and can never be complex. A compound joining a placeholder to real text is still one word, but the placeholder is a boundary within it: stripping the stand-in leaves one or more remainder fragments, each a contiguous run of real text with joiners kept, and each fragment is judged on its own. The word is complex when any fragment is, counting once, and a `complex:` list names the complex fragments, never a fusion of text from both sides of a placeholder: `` `foo` ``-oriented is judged on and printed as `-oriented`, multi-`` `foo` `` is judged on `multi-` (not complex), and re-`` `foo` ``created is judged on `re-` and `created` separately (neither complex), not on a fused `re-created` that is absent from the source. Stand-in text never reaches output. (Deleting these tokens instead would make sentences look shorter than they read.) A bare URL starts at `http://` or `https://` (any letter case) at a word boundary (the start of the document, or after a non-alphanumeric character) and runs to the next whitespace or `<`; inside link text it stops at the text's end. Trailing punctuation goes back to the sentence: GFM's extended-autolink trimming (its punctuation and quote set, an unbalanced trailing `)`, and a `;` closing an entity reference, which takes the whole entity with it), plus `…`; a `;` closing no entity stays in the URL. Other schemes and scheme-less hosts (`www.…`) stay text.
 
 ## Sentence segmentation
 
@@ -73,7 +73,7 @@ A complex word has 3+ syllables, after Gunning's own exclusions (The Technique o
 - **Hyphenated words**: complex only if at least one hyphen-separated part is 3+ syllables on its own. No compound dictionary; closed compounds (`bookkeeper`) stay undetected.
 - There is no "familiar jargon" rule; Gunning's book has none.
 
-A word excused by an exclusion never appears in a `complex:` list.
+A word or remainder fragment excused by an exclusion never appears in a `complex:` list.
 
 ## Scoring
 
@@ -116,7 +116,7 @@ fog: 12.4 (target 10)
 ```
 
 - Score line: `fog: <score> (target <target>)`, score at one decimal.
-- Hotspot line, in document order: contribution at two decimals with sign (it is a delta, not a grade claim), word count as `<N>w`, source line number as `L<N>` for `--file` input only, the quoted excerpt, then `complex:` and the sentence's complex words in document order, deduplicated case-insensitively keeping the first spelling — omitted when the sentence has none. Local per-sentence fog is never printed.
+- Hotspot line, in document order: contribution at two decimals with sign (it is a delta, not a grade claim), word count as `<N>w`, source line number as `L<N>` for `--file` input only, the quoted excerpt, then `complex:` and the sentence's complex words, each named by its complex remainder fragments, in document order, deduplicated case-insensitively keeping the first spelling — omitted when the sentence has none. Local per-sentence fog is never printed.
 - Excerpt: the sentence's first ~8 words of extracted prose, single-spaced, `…` appended when the sentence goes on. One excerpt word per counted word, so the excerpt stays consistent with the `<N>w` count, though whitespace a shown construct carries collapses to single spaces and splits that one word across space-separated parts; punctuation between words is not carried. Markup that extraction removes (emphasis markers, link targets, HTML) can never appear. A placeholder word shows the construct it replaced, as written in the source: an inline code span with its backticks, an autolink with its angle brackets, a bare URL as the URL; stand-in text never appears. Inner `"` characters pass through unescaped (only a shown construct can carry one in; a quote between words is punctuation and is not carried) — the excerpt sits between the outer quotes but is not parseable by splitting on quotes.
 - Sanitising: each Unicode control (`Cc`) or format (`Cf`) character in document-derived text is replaced with one U+FFFD (`�`), one replacement per character. The rule applies at every print site that quotes the document: the excerpt, the hotspot's `complex:` words, and the refusal's `complex:` words. A scored document cannot write escape sequences to the terminal, reorder a line with a bidi override, or hide words with zero-width characters.
 - At or under target: the score line alone.

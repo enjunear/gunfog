@@ -24,8 +24,8 @@ use crate::prose::ProseEvent;
 /// code-span-initial or URL-initial sentence into the one before it.
 /// Capitalised, a placeholder after a terminator opens a sentence exactly
 /// as a real capitalised word does. The case is a segmentation device and
-/// nothing more; the stand-in is stripped from every word's text before
-/// judgement, so the capital never reaches the complex-word rule.
+/// nothing more; the stand-in is stripped from every word's fragments
+/// before judgement, so the capital never reaches the complex-word rule.
 const PLACEHOLDER_WORD: &str = "X";
 
 /// The abbreviations whose trailing period never ends a sentence, exactly
@@ -35,22 +35,50 @@ const ABBREVIATIONS: [&str; 10] = [
     "Mr.", "Mrs.", "Ms.", "Dr.", "Prof.", "St.", "e.g.", "i.e.", "cf.", "vs.",
 ];
 
+/// One contiguous run of a word's real text, as delimited by the
+/// placeholder stand-ins in its token.
+///
+/// Author: Claude Fable 5
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Fragment {
+    /// The fragment as written, joiners kept (`` `foo` ``-oriented
+    /// carries the one fragment `-oriented`). Never empty, and never
+    /// spanning a placeholder, so a fragment is always contiguous in the
+    /// source.
+    pub text: String,
+    /// Number/version strings can never be complex, whatever the
+    /// syllable counter would make of their text.
+    pub never_complex: bool,
+}
+
+impl Fragment {
+    /// Wraps one remainder fragment's text with its never-complex
+    /// judgement.
+    ///
+    /// Author: Claude Fable 5
+    fn new(text: String) -> Fragment {
+        Fragment {
+            never_complex: is_number(&text),
+            text,
+        }
+    }
+}
+
 /// One word of a sentence.
 ///
 /// Author: Claude Fable 5
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Word {
-    /// The word as written, with any placeholder stand-in stripped: a
-    /// hyphenated compound keeps its hyphens, a contraction stays whole,
-    /// and a word joined to a placeholder keeps only its real remainder
-    /// with joiners kept (`` `foo` ``-oriented carries `-oriented`). A
-    /// bare placeholder strips to the empty string. Stand-in text never
-    /// reaches judgement or output.
-    pub text: String,
-    /// Number/version strings and placeholder words (an empty remainder)
-    /// can never be complex, whatever the syllable counter would make of
-    /// their text.
-    pub never_complex: bool,
+    /// The word's real text, split at placeholders: a placeholder is a
+    /// boundary within its token, so no fragment ever fuses text from
+    /// both sides of one. A word without a placeholder is one fragment
+    /// (a hyphenated compound keeps its hyphens, a contraction stays
+    /// whole); a word joined to a placeholder keeps its remainder
+    /// fragments with joiners kept (`` `foo` ``-oriented carries
+    /// `-oriented`; re-`` `foo` ``created carries `re-` and `created`).
+    /// A bare placeholder has no fragments, which is its never-complex
+    /// contract. Stand-in text never reaches judgement or output.
+    pub fragments: Vec<Fragment>,
     /// The word as an excerpt shows it: the token's extracted prose, with
     /// a placeholder's extent replaced by the construct it stood for, as
     /// written in the source (`` `foo` ``-oriented shows as
@@ -134,15 +162,18 @@ pub fn sentences(source: &str, events: &[ProseEvent]) -> Vec<Sentence> {
             let words = tokens
                 .iter()
                 .map(|token| {
-                    // The remainder is the token with any stand-in bytes
-                    // dropped: what the word is judged and named by. A
-                    // token that is nothing but stand-in strips to empty,
+                    // The fragments are the token's runs of real text,
+                    // split wherever a stand-in sits: each is judged and
+                    // named on its own, so no printed word ever fuses
+                    // text from both sides of a placeholder. A token
+                    // that is nothing but stand-in yields no fragments,
                     // which is the bare placeholder's never-complex
-                    // contract. The shown form swaps each stand-in for the
-                    // construct it replaced instead, read from the source.
-                    // A token holds no whitespace, so its every byte sits
-                    // in some piece.
-                    let mut remainder = String::new();
+                    // contract. The shown form swaps each stand-in for
+                    // the construct it replaced instead, read from the
+                    // source. A token holds no whitespace, so its every
+                    // byte sits in some piece.
+                    let mut fragments = Vec::new();
+                    let mut current = String::new();
                     let mut shown = String::new();
                     for piece in &pieces {
                         let start = piece.text.start.max(token.start);
@@ -152,16 +183,18 @@ pub fn sentences(source: &str, events: &[ProseEvent]) -> Vec<Sentence> {
                         }
                         if piece.placeholder {
                             shown.push_str(&source[piece.source.clone()]);
+                            if !current.is_empty() {
+                                fragments.push(Fragment::new(std::mem::take(&mut current)));
+                            }
                         } else {
-                            remainder.push_str(&text[start..end]);
+                            current.push_str(&text[start..end]);
                             shown.push_str(&text[start..end]);
                         }
                     }
-                    Word {
-                        never_complex: remainder.is_empty() || is_number(&remainder),
-                        text: remainder,
-                        shown,
+                    if !current.is_empty() {
+                        fragments.push(Fragment::new(current));
                     }
+                    Word { fragments, shown }
                 })
                 .collect();
             out.push(Sentence { words, span, line });
@@ -203,9 +236,9 @@ fn source_end(pieces: &[Piece], position: usize) -> usize {
     }
 }
 
-/// Whether the token is a number or version string: after an optional
+/// Whether the fragment is a number or version string: after an optional
 /// leading `v` or `V`, a numeric core that starts with a digit and holds no
-/// letters (`42`, `1.2.3`, `v1.2.3`). A token with no letters at all
+/// letters (`42`, `1.2.3`, `v1.2.3`). A fragment with no letters at all
 /// (`2024-01-15`, `555-1234`) is a number outright. A hyphenated suffix is
 /// a version identifier only when the core is dotted, so `1.2.3-beta` and
 /// `2.0-rc1` qualify while `3-dimensional` keeps its word part eligible
@@ -214,8 +247,8 @@ fn source_end(pieces: &[Piece], position: usize) -> usize {
 /// prerelease tag would need a dictionary.
 ///
 /// Author: Claude Fable 5
-fn is_number(token: &str) -> bool {
-    let rest = token.strip_prefix(['v', 'V']).unwrap_or(token);
+fn is_number(fragment: &str) -> bool {
+    let rest = fragment.strip_prefix(['v', 'V']).unwrap_or(fragment);
     let (core, suffix) = match rest.split_once('-') {
         Some((core, suffix)) => (core, Some(suffix)),
         None => (rest, None),
@@ -328,13 +361,34 @@ mod tests {
     }
 
     /// Each sentence's token texts, for tests about segmentation and token
-    /// shape rather than flags or lines.
+    /// shape rather than flags or lines. Placeholder-free input only:
+    /// every word must be exactly one fragment.
     ///
     /// Author: Claude Fable 5
     fn token_texts(md: &str) -> Vec<Vec<String>> {
         parse(md)
             .into_iter()
-            .map(|sentence| sentence.words.into_iter().map(|word| word.text).collect())
+            .map(|sentence| {
+                sentence
+                    .words
+                    .into_iter()
+                    .map(|word| {
+                        let mut fragments = word.fragments;
+                        assert_eq!(fragments.len(), 1, "expected one fragment per word");
+                        fragments.remove(0).text
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// One word's fragment texts, for tests about the boundary rule.
+    ///
+    /// Author: Claude Fable 5
+    fn fragment_texts(word: &super::Word) -> Vec<&str> {
+        word.fragments
+            .iter()
+            .map(|fragment| fragment.text.as_str())
             .collect()
     }
 
@@ -495,7 +549,12 @@ mod tests {
         let flags: Vec<(&str, bool)> = found[0]
             .words
             .iter()
-            .map(|word| (word.text.as_str(), word.never_complex))
+            .map(|word| {
+                (
+                    word.fragments[0].text.as_str(),
+                    word.fragments[0].never_complex,
+                )
+            })
             .collect();
         assert_eq!(
             flags,
@@ -516,8 +575,8 @@ mod tests {
     #[test]
     fn a_numeric_part_does_not_excuse_a_hyphenated_compound() {
         let found = parse("A 3-dimensional interface.");
-        assert_eq!(found[0].words[1].text, "3-dimensional");
-        assert!(!found[0].words[1].never_complex);
+        assert_eq!(found[0].words[1].fragments[0].text, "3-dimensional");
+        assert!(!found[0].words[1].fragments[0].never_complex);
     }
 
     /// A hyphenated suffix on a dotted numeric core is a version
@@ -530,7 +589,12 @@ mod tests {
         let flagged: Vec<(&str, bool)> = found[0]
             .words
             .iter()
-            .map(|word| (word.text.as_str(), word.never_complex))
+            .map(|word| {
+                (
+                    word.fragments[0].text.as_str(),
+                    word.fragments[0].never_complex,
+                )
+            })
             .collect();
         assert_eq!(
             flagged,
@@ -551,8 +615,8 @@ mod tests {
     #[test]
     fn an_all_digit_hyphenated_token_is_never_complex() {
         let found = parse("Released on 2024-01-15 today.");
-        assert_eq!(found[0].words[2].text, "2024-01-15");
-        assert!(found[0].words[2].never_complex);
+        assert_eq!(found[0].words[2].fragments[0].text, "2024-01-15");
+        assert!(found[0].words[2].fragments[0].never_complex);
     }
 
     /// Author: Claude Fable 5
@@ -561,17 +625,16 @@ mod tests {
         let found = parse("Run `cargo test --locked` now.");
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].words.len(), 3);
-        assert!(found[0].words[1].never_complex);
-        assert_eq!(found[0].words[1].text, "");
-        assert!(!found[0].words[0].never_complex);
+        assert!(found[0].words[1].fragments.is_empty());
+        assert!(!found[0].words[0].fragments[0].never_complex);
     }
 
     /// A placeholder joined to other text (across a hyphen or flush
-    /// against it) carries only the real remainder, joiners kept: the
-    /// stand-in is stripped before the word is judged or named, so
-    /// `` `foo` ``-oriented is the word `-oriented` and `` `cargo test` ``s
-    /// is the word `s`. The compound is still one word, and the remainder
-    /// stays eligible for complexity.
+    /// against it) carries only its real remainder fragments, joiners
+    /// kept: the stand-in is stripped before the word is judged or
+    /// named, so `` `foo` ``-oriented is the fragment `-oriented` and
+    /// `` `cargo test` ``s is the fragment `s`. The compound is still
+    /// one word, and each fragment stays eligible for complexity.
     ///
     /// Author: Claude Fable 5
     /// Author: Claude Opus 5
@@ -579,18 +642,38 @@ mod tests {
     fn a_placeholder_compound_carries_only_its_real_remainder() {
         let found = parse("A `foo`-oriented interpretation.");
         assert_eq!(found[0].words.len(), 3);
-        assert_eq!(found[0].words[1].text, "-oriented");
-        assert!(!found[0].words[1].never_complex);
+        assert_eq!(fragment_texts(&found[0].words[1]), ["-oriented"]);
+        assert!(!found[0].words[1].fragments[0].never_complex);
 
         let found = parse("Many `cargo test`s were run.");
         assert_eq!(found[0].words.len(), 4);
-        assert_eq!(found[0].words[1].text, "s");
-        assert!(!found[0].words[1].never_complex);
+        assert_eq!(fragment_texts(&found[0].words[1]), ["s"]);
+        assert!(!found[0].words[1].fragments[0].never_complex);
 
         let found = parse("A multi-`foo` approach.");
         assert_eq!(found[0].words.len(), 3);
-        assert_eq!(found[0].words[1].text, "multi-");
-        assert!(!found[0].words[1].never_complex);
+        assert_eq!(fragment_texts(&found[0].words[1]), ["multi-"]);
+        assert!(!found[0].words[1].fragments[0].never_complex);
+    }
+
+    /// A placeholder inside a compound is a boundary: the runs of real
+    /// text either side become separate fragments, never a concatenation
+    /// that is absent from the source. The token is still one word.
+    ///
+    /// Author: Claude Fable 5
+    #[test]
+    fn an_interior_placeholder_splits_the_token_into_fragments() {
+        let found = parse("The re-`foo`created scene.");
+        assert_eq!(found[0].words.len(), 3);
+        assert_eq!(fragment_texts(&found[0].words[1]), ["re-", "created"]);
+        assert_eq!(found[0].words[1].shown, "re-`foo`created");
+
+        let found = parse("A `foo`interpretation`baz`celebration here.");
+        assert_eq!(found[0].words.len(), 3);
+        assert_eq!(
+            fragment_texts(&found[0].words[1]),
+            ["interpretation", "celebration"]
+        );
     }
 
     /// The stand-in's capital is what carries this break. UAX #29

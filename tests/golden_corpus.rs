@@ -13,7 +13,7 @@ use gunfog::prose::extract;
 use gunfog::report::render;
 use gunfog::score::analyse;
 use gunfog::segment::sentences;
-use gunfog::syllable::complex_words;
+use gunfog::syllable::complex_fragments;
 
 /// Asserts one corpus sample's full shape: per-sentence word counts,
 /// the complex words in document order, and the printed score line.
@@ -23,10 +23,7 @@ fn assert_sample(source: &str, sentence_words: &[usize], complex: &[&str], score
     let found = sentences(source, &extract(source));
     let words: Vec<usize> = found.iter().map(|s| s.words.len()).collect();
     assert_eq!(words, sentence_words, "per-sentence word counts");
-    let named: Vec<&str> = found
-        .iter()
-        .flat_map(|s| complex_words(s).into_iter().map(|w| w.text.as_str()))
-        .collect();
+    let named: Vec<&str> = found.iter().flat_map(complex_fragments).collect();
     assert_eq!(named, complex, "complex words in document order");
     let analysis = analyse(&found, 10.0, 10);
     let report = render(&found, &analysis, 10, 10, false);
