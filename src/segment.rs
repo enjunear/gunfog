@@ -2,7 +2,7 @@
 //! sentences of word tokens out.
 //!
 //! Between the unconditional boundaries the extraction stage emits (list
-//! item edges, hard breaks, paragraph ends, removed block-level
+//! item edges, hard breaks, paragraph ends, other block-level
 //! constructs), segmentation is UAX #29 via `unicode-segmentation`,
 //! followed by a merge pass over the fixed abbreviation list in
 //! `SPEC.md`. A soft break becomes a space before segmentation.
@@ -437,6 +437,41 @@ mod tests {
         assert_eq!(
             token_texts("- trivial ones:\n  ```\n  code\n  ```\n  It continues."),
             vec![vec!["trivial", "ones"], vec!["It", "continues"]],
+        );
+    }
+
+    /// The same fused token from the three block-level constructs that
+    /// remove no content: a thematic break has none, and a blockquote's
+    /// and a footnote definition's own words are scored.
+    ///
+    /// Author: Claude Opus 5
+    #[test]
+    fn a_thematic_break_in_a_tight_list_item_splits_the_sentence() {
+        assert_eq!(
+            token_texts("- trivial ones:\n  ***\n  It continues."),
+            vec![vec!["trivial", "ones"], vec!["It", "continues"]],
+        );
+    }
+
+    /// Author: Claude Opus 5
+    #[test]
+    fn a_blockquote_in_a_tight_list_item_splits_the_sentence() {
+        assert_eq!(
+            token_texts("- trivial ones:\n  > quoted words\n  >\n  It continues."),
+            vec![
+                vec!["trivial", "ones"],
+                vec!["quoted", "words"],
+                vec!["It", "continues"],
+            ],
+        );
+    }
+
+    /// Author: Claude Opus 5
+    #[test]
+    fn a_footnote_definition_in_a_tight_list_item_splits_the_sentence() {
+        assert_eq!(
+            token_texts("- trivial ones:\n  [^a]: footnote body"),
+            vec![vec!["trivial", "ones"], vec!["footnote", "body"]],
         );
     }
 
