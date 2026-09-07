@@ -43,9 +43,10 @@ pub enum ProseEvent {
     /// A soft break; becomes a space before segmentation.
     SoftBreak,
     /// A sentence boundary: a hard break, a paragraph end, a list item's
-    /// start or end, or a removed block-level construct (heading, code
-    /// block, table, HTML block) where it sits. Never emitted first or
-    /// twice in a row.
+    /// start or end, or the edge of any other block-level construct
+    /// (heading, code block, table, HTML block, thematic break,
+    /// blockquote, footnote definition) where it sits. Never emitted
+    /// first or twice in a row.
     Boundary,
 }
 
@@ -90,11 +91,11 @@ pub fn extract(markdown: &str) -> Vec<ProseEvent> {
     let mut consumed_until = 0usize;
     for (index, (event, range)) in parsed.into_iter().enumerate() {
         match event {
-            // A removed block-level construct is also a sentence boundary:
-            // a tight list item emits no paragraph events, so without one
-            // the text either side of the construct would fuse. Image is
-            // the one inline construct in this list and emits none; the
-            // prose either side of an image is a single sentence.
+            // Every block-level construct is a sentence boundary where it
+            // sits: a tight list item emits no paragraph events, so
+            // without one the text either side would fuse. Image is the
+            // one inline construct in this list and emits none; the prose
+            // either side of an image is a single sentence.
             Event::Start(
                 tag @ (Tag::Heading { .. }
                 | Tag::CodeBlock(_)
@@ -157,9 +158,17 @@ pub fn extract(markdown: &str) -> Vec<ProseEvent> {
                     });
                 }
             }
-            Event::Start(Tag::Item) | Event::End(TagEnd::Paragraph | TagEnd::Item) => {
-                push_boundary(&mut events)
-            }
+            // The block-level constructs extraction keeps: a thematic
+            // break, which carries no content, and a blockquote or
+            // footnote definition, whose content is scored. None of them
+            // sits in the removed set above, and each still separates the
+            // text around it. Opening edges are enough: the last block
+            // inside one of these has already pushed a boundary, at its
+            // own end for a paragraph, a list item or a thematic break,
+            // and at its start for the removed constructs above.
+            Event::Rule
+            | Event::Start(Tag::Item | Tag::BlockQuote(_) | Tag::FootnoteDefinition(_))
+            | Event::End(TagEnd::Paragraph | TagEnd::Item) => push_boundary(&mut events),
             Event::SoftBreak => events.push(ProseEvent::SoftBreak),
             Event::HardBreak => push_boundary(&mut events),
             _ => {}
@@ -1157,6 +1166,60 @@ mod tests {
                 text("Alpha one:", 2),
                 ProseEvent::Boundary,
                 text("Beta two.", 32),
+                ProseEvent::Boundary,
+            ],
+        );
+    }
+
+    /// A thematic break carries no content, so it never joined the removed
+    /// set and never got a boundary with it.
+    ///
+    /// Author: Claude Opus 5
+    #[test]
+    fn thematic_break_in_a_tight_list_item_is_a_boundary() {
+        assert_eq!(
+            extract("- Alpha one:\n  ***\n  Beta two."),
+            vec![
+                text("Alpha one:", 2),
+                ProseEvent::Boundary,
+                text("Beta two.", 21),
+                ProseEvent::Boundary,
+            ],
+        );
+    }
+
+    /// A blockquote's content is scored, so it never joined the removed
+    /// set. Here its inner paragraph end closes it and only its start
+    /// went unmarked.
+    ///
+    /// Author: Claude Opus 5
+    #[test]
+    fn blockquote_in_a_tight_list_item_is_a_boundary() {
+        assert_eq!(
+            extract("- Alpha one:\n  > quoted words\n  >\n  Beta two."),
+            vec![
+                text("Alpha one:", 2),
+                ProseEvent::Boundary,
+                text("quoted words", 17),
+                ProseEvent::Boundary,
+                text("Beta two.", 36),
+                ProseEvent::Boundary,
+            ],
+        );
+    }
+
+    /// A footnote definition's content is scored, so like a blockquote it
+    /// falls outside the removed set and needs its own opening edge.
+    ///
+    /// Author: Claude Opus 5
+    #[test]
+    fn footnote_definition_in_a_tight_list_item_is_a_boundary() {
+        assert_eq!(
+            extract("- Alpha one:\n  [^a]: footnote body"),
+            vec![
+                text("Alpha one:", 2),
+                ProseEvent::Boundary,
+                text("footnote body", 21),
                 ProseEvent::Boundary,
             ],
         );
