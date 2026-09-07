@@ -100,7 +100,7 @@ no score: 34 words (min 100)
 complex: paradigm, initialisation, functionality
 ```
 
-Line 1 always; line 2 only when complex words exist, deduped, in document order. No hotspot lines. Exit 1. `--limit 0` prints line 1 alone. Zero-prose input takes the same path: `no score: 0 words (min 100)`.
+Line 1 always; line 2 only when complex words exist, deduped, in document order, and uncapped. No hotspot lines. Exit 1. `--limit 0` prints line 1 alone. Zero-prose input takes the same path: `no score: 0 words (min 100)`.
 
 Scores at 100+ words print clean, but note: under ~400 words the fog score is coarse (sampling noise of roughly 1–2 grades).
 
@@ -110,13 +110,13 @@ Over target, file input:
 
 ```
 fog: 12.4 (target 10)
-+0.82 26w L12 "The leave-one-out contribution of each sentence is measured…" complex: contribution, counterfactual
++0.82 26w L12 "The leave-one-out contribution of each sentence is measured…" complex: contribution, counterfactual, attribution…
 +0.41 19w L30 "Selection proceeds in descending contribution until the gap…" complex: descending, contribution
 +3 more, 1.2 grades remaining
 ```
 
 - Score line: `fog: <score> (target <target>)`, score at one decimal.
-- Hotspot line, in document order: contribution at two decimals with sign (it is a delta, not a grade claim), word count as `<N>w`, source line number as `L<N>` for `--file` input only, the quoted excerpt, then `complex:` and the sentence's complex words, each named by its complex remainder fragments, in document order, deduplicated case-insensitively keeping the first spelling — omitted when the sentence has none. Local per-sentence fog is never printed.
+- Hotspot line, in document order: contribution at two decimals with sign (it is a delta, not a grade claim), word count as `<N>w`, source line number as `L<N>` for `--file` input only, the quoted excerpt, then `complex:` and the sentence's complex words, each named by its complex remainder fragments, deduplicated case-insensitively keeping the first spelling. The list is omitted when the sentence has none, and capped at three names: the three with the most syllables, an earlier name winning a tie for the last slot, printed in document order with a trailing `…` when the cap hid a name. A hyphenated name is ranked on its hyphen-separated parts added together, so the whole compound counts. Local per-sentence fog is never printed.
 - Excerpt: the sentence's first ~8 words of extracted prose, single-spaced, `…` appended when the sentence goes on. One excerpt word per counted word, so the excerpt stays consistent with the `<N>w` count, though whitespace a shown construct carries collapses to single spaces and splits that one word across space-separated parts; punctuation between words is not carried. Markup that extraction removes (emphasis markers, link targets, HTML) can never appear. A placeholder word shows the construct it replaced, as written in the source: an inline code span with its backticks, an autolink with its angle brackets, a bare URL as the URL; stand-in text never appears. Inner `"` characters pass through unescaped (only a shown construct can carry one in; a quote between words is punctuation and is not carried) — the excerpt sits between the outer quotes but is not parseable by splitting on quotes.
 - Sanitising: each Unicode control (`Cc`) or format (`Cf`) character in document-derived text is replaced with one U+FFFD (`�`), one replacement per character. The rule applies at every print site that quotes the document: the excerpt, the hotspot's `complex:` words, and the refusal's `complex:` words. A scored document cannot write escape sequences to the terminal, reorder a line with a bidi override, or hide words with zero-width characters.
 - At or under target: the score line alone.
