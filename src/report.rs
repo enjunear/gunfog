@@ -9,11 +9,19 @@
 
 use crate::score::{Analysis, FLOOR, Refusal, Scored, printed};
 use crate::segment::{Sentence, Word};
-use crate::syllable::complex_fragments;
+use crate::syllable::{complex_fragments, syllables};
+use std::cmp::Reverse;
 use std::collections::HashSet;
 
 /// How many leading words a hotspot excerpt shows.
 const EXCERPT_WORDS: usize = 8;
+
+/// How many words a hotspot's `complex:` list names. A longer list is a
+/// transcript of the sentence's polysyllables rather than a rewriting
+/// instruction, and it is most of what the report costs: scoring
+/// `docs/research/fog-vs-flesch-kincaid.md` at target 10 prints 1724
+/// bytes uncapped against 1227 capped.
+const COMPLEX_WORDS: usize = 3;
 
 /// Renders an analysis as the report text, one trailing newline per line.
 ///
@@ -56,8 +64,8 @@ pub fn render(
 /// The score line, the hotspot lines in document order, and the tail.
 ///
 /// Each hotspot's `complex:` list is deduplicated case-insensitively,
-/// first spelling kept, mirroring the refusal line, and each word is
-/// [`sanitise`]d on its way out.
+/// first spelling kept, mirroring the refusal line, then capped by
+/// [`complex_list`]; each name is [`sanitise`]d on its way out.
 ///
 /// Author: Claude Fable 5
 fn scored_text(sentences: &[Sentence], scored: &Scored, target: usize, with_lines: bool) -> String {
@@ -78,13 +86,13 @@ fn scored_text(sentences: &[Sentence], scored: &Scored, target: usize, with_line
         let complex = complex_fragments(sentence);
         if !complex.is_empty() {
             let mut seen = HashSet::new();
-            let names: Vec<String> = complex
+            let unique: Vec<&str> = complex
                 .iter()
+                .copied()
                 .filter(|fragment| seen.insert(fragment.to_lowercase()))
-                .map(|fragment| sanitise(fragment))
                 .collect();
             out.push_str(" complex: ");
-            out.push_str(&names.join(", "));
+            out.push_str(&complex_list(&unique));
         }
         out.push('\n');
     }
@@ -111,6 +119,48 @@ fn refusal_text(refusal: &Refusal, limit: usize) -> String {
         out.push('\n');
     }
     out
+}
+
+/// The `complex:` list a hotspot prints, from its deduplicated complex
+/// names: at most [`COMPLEX_WORDS`] of them, the ones with the most
+/// syllables, joined in document order with `…` appended when the cap
+/// hid something.
+///
+/// Ranking and printing are separate orders on purpose. The cap keeps the
+/// words hardest for a reader, which is where a rewrite pays best; the
+/// list still reads in document order, so each name lands where the
+/// excerpt shows it. The sort is stable, so equal syllable counts keep
+/// document order and the earlier word wins the last slot.
+///
+/// Author: Claude Fable 5
+fn complex_list(unique: &[&str]) -> String {
+    let mut kept: Vec<usize> = (0..unique.len()).collect();
+    kept.sort_by_key(|&index| Reverse(name_syllables(unique[index])));
+    kept.truncate(COMPLEX_WORDS);
+    kept.sort_unstable();
+    let mut out = kept
+        .iter()
+        .map(|&index| sanitise(unique[index]))
+        .collect::<Vec<String>>()
+        .join(", ");
+    if unique.len() > COMPLEX_WORDS {
+        out.push('…');
+    }
+    out
+}
+
+/// What one printed name costs a reader: its hyphen-separated parts'
+/// syllables added together, so the whole compound counts.
+///
+/// [`syllables`] drops the hyphen before counting, which fuses the vowels
+/// either side of it: `co-operation` comes back 4 where a reader meets 5,
+/// and `re-examine` 3 against 4. Splitting first counts each part on its
+/// own and adds them, which is also the split the complex-word rule
+/// already makes. A name without a hyphen is one part and unaffected.
+///
+/// Author: Claude Fable 5
+fn name_syllables(name: &str) -> usize {
+    name.split('-').map(syllables).sum()
 }
 
 /// The sentence's first [`EXCERPT_WORDS`] words in their shown form,
@@ -223,6 +273,135 @@ mod tests {
                 "expected the first spelling alone, line was: {hotspot}"
             );
         }
+    }
+
+    /// The one hotspot line of a document opening with `opener`, padded
+    /// with one-syllable filler past the 100-word floor and closed by a
+    /// short simple sentence that never makes the hotspot list.
+    ///
+    /// Author: Claude Fable 5
+    fn hotspot_of(opener: &str) -> String {
+        let md = format!(
+            "{opener} {}sea. Bravo {}sea.",
+            "day ".repeat(90),
+            "day ".repeat(8)
+        );
+        let found = sentences(&md, &extract(&md));
+        let analysis = analyse(&found, 10.0, 10);
+        let report = render(&found, &analysis, 10, 10, false);
+        report
+            .lines()
+            .nth(1)
+            .expect("the padded first sentence should be a hotspot")
+            .to_string()
+    }
+
+    /// Syllable counts: beautiful 3, counterfactual 5, implementation 5,
+    /// recalculates 4. Document order opens with the least demanding
+    /// word, so a list that kept document order alone would name it.
+    ///
+    /// Author: Claude Fable 5
+    #[test]
+    fn hotspot_complex_list_names_the_three_most_demanding_words() {
+        let hotspot = hotspot_of("The beautiful counterfactual implementation recalculates");
+        assert!(
+            hotspot.ends_with("complex: counterfactual, implementation, recalculates…"),
+            "line was: {hotspot}"
+        );
+    }
+
+    /// At or under the cap the list is what it has always been: every
+    /// complex word, in document order, with nothing marking a
+    /// truncation that did not happen.
+    ///
+    /// Author: Claude Fable 5
+    #[test]
+    fn hotspot_complex_list_under_the_cap_keeps_document_order_and_no_marker() {
+        assert!(
+            hotspot_of("The beautiful counterfactual")
+                .ends_with("complex: beautiful, counterfactual"),
+            "two words should print in document order, unmarked"
+        );
+        assert!(
+            hotspot_of("The beautiful counterfactual implementation")
+                .ends_with("complex: beautiful, counterfactual, implementation"),
+            "exactly three words hide nothing, so nothing marks them"
+        );
+    }
+
+    /// Syllable counts: counterfactual 5, then attribution, recalculates
+    /// and segmentation all 4. Three words compete for two slots and the
+    /// earlier two win.
+    ///
+    /// Author: Claude Fable 5
+    #[test]
+    fn hotspot_complex_cap_breaks_syllable_ties_by_document_order() {
+        let hotspot = hotspot_of("The counterfactual attribution recalculates segmentation");
+        assert!(
+            hotspot.ends_with("complex: counterfactual, attribution, recalculates…"),
+            "line was: {hotspot}"
+        );
+    }
+
+    /// A hyphenated name is ranked on the whole compound, not on the part
+    /// that made it complex. The complex-word rule splits on the hyphen
+    /// so a compound of short parts is not counted as one long word, but
+    /// a reader still meets every syllable: `well-documented` is five
+    /// against `segmentation`'s four, so it takes the last slot.
+    ///
+    /// Author: Claude Fable 5
+    #[test]
+    fn hotspot_complex_cap_ranks_a_hyphenated_name_on_the_whole_compound() {
+        let hotspot = hotspot_of("The attribution recalculates segmentation well-documented");
+        assert!(
+            hotspot.ends_with("complex: attribution, recalculates, well-documented…"),
+            "line was: {hotspot}"
+        );
+    }
+
+    /// The parts are added, not counted through the whole string, so the
+    /// hyphen's neighbouring vowels stay apart. `co-operation` is five
+    /// syllables and outranks `segmentation`'s four; counting the string
+    /// whole would fuse `co` into `operation` and score it four, leaving
+    /// `segmentation` in the list on document order instead.
+    ///
+    /// Author: Claude Fable 5
+    #[test]
+    fn hotspot_complex_cap_adds_a_hyphenated_name_rather_than_fusing_it() {
+        let hotspot = hotspot_of("The attribution recalculates segmentation co-operation");
+        assert!(
+            hotspot.ends_with("complex: attribution, recalculates, co-operation…"),
+            "line was: {hotspot}"
+        );
+    }
+
+    /// A repeat is folded away before the cap counts, so it neither
+    /// spends a slot nor marks the list truncated.
+    ///
+    /// Author: Claude Fable 5
+    #[test]
+    fn hotspot_complex_dedupe_happens_before_the_cap() {
+        let hotspot = hotspot_of("The beautiful beautiful counterfactual implementation");
+        assert!(
+            hotspot.ends_with("complex: beautiful, counterfactual, implementation"),
+            "line was: {hotspot}"
+        );
+    }
+
+    /// Under the floor the `complex:` line is the whole actionable
+    /// output, so the cap does not apply to it.
+    ///
+    /// Author: Claude Fable 5
+    #[test]
+    fn refusal_complex_line_is_uncapped() {
+        let md = "The beautiful counterfactual implementation recalculates documentation.";
+        let found = sentences(md, &extract(md));
+        let analysis = analyse(&found, 10.0, 10);
+        assert_eq!(
+            render(&found, &analysis, 10, 10, false),
+            "no score: 6 words (min 100)\n\
+             complex: beautiful, counterfactual, implementation, recalculates, documentation\n"
+        );
     }
 
     /// The first sentence's words, for excerpt tests: the excerpt's
