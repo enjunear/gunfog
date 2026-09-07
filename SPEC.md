@@ -2,7 +2,7 @@
 
 `gunfog` is a CLI that scores prose with the Gunning fog index and reports hotspots so a coding agent can revise its own writing. Token-efficient output is the prime directive: every printed character must earn its place in an agent's context window.
 
-Terms (prose, sentence, word, complex word, placeholder word, remainder fragment, contribution, hotspot, target, floor) are defined in [CONTEXT.md](CONTEXT.md). Rationale and measurements live in `docs/research/`; this file states only what to build.
+Terms (prose, sentence, word, complex word, placeholder word, remainder fragment, contribution, hotspot, complex list, sanitising, target, floor) are defined in [CONTEXT.md](CONTEXT.md). Rationale and measurements live in `docs/research/`; this file states only what to build.
 
 ## CLI contract
 
@@ -118,7 +118,7 @@ fog: 12.4 (target 10)
 - Score line: `fog: <score> (target <target>)`, score at one decimal.
 - Hotspot line, in document order: contribution at two decimals with sign (it is a delta, not a grade claim), word count as `<N>w`, source line number as `L<N>` for `--file` input only, the quoted excerpt, then `complex:` and the sentence's complex words, each named by its complex remainder fragments, deduplicated case-insensitively keeping the first spelling. The list is omitted when the sentence has none, and capped at three names: the three with the most syllables, an earlier name winning a tie for the last slot, printed in document order with a trailing `…` when the cap hid a name. A hyphenated name is ranked on its hyphen-separated parts added together, so the whole compound counts. Local per-sentence fog is never printed.
 - Excerpt: the sentence's first ~8 words of extracted prose, single-spaced, `…` appended when the sentence goes on. One excerpt word per counted word, so the excerpt stays consistent with the `<N>w` count, though whitespace a shown construct carries collapses to single spaces and splits that one word across space-separated parts; punctuation between words is not carried. Markup that extraction removes (emphasis markers, link targets, HTML) can never appear. A placeholder word shows the construct it replaced, as written in the source: an inline code span with its backticks, an autolink with its angle brackets, a bare URL as the URL; stand-in text never appears. Inner `"` characters pass through unescaped (only a shown construct can carry one in; a quote between words is punctuation and is not carried) — the excerpt sits between the outer quotes but is not parseable by splitting on quotes.
-- Sanitising: each Unicode control (`Cc`) or format (`Cf`) character in document-derived text is replaced with one U+FFFD (`�`), one replacement per character. The rule applies at every print site that quotes the document: the excerpt, the hotspot's `complex:` words, and the refusal's `complex:` words. A scored document cannot write escape sequences to the terminal, reorder a line with a bidi override, or hide words with zero-width characters.
+- Sanitising: each Unicode control (`Cc`) or format (`Cf`) character in document-derived text is replaced with one U+FFFD (`�`), one replacement per character. The rule applies at every print site that quotes the document: the excerpt, the hotspot's `complex:` names, and the refusal's `complex:` names. A scored document cannot write escape sequences to the terminal, reorder a line with a bidi override, or hide words with zero-width characters.
 - At or under target: the score line alone.
 
 ## Implementation

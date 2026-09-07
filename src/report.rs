@@ -16,12 +16,12 @@ use std::collections::HashSet;
 /// How many leading words a hotspot excerpt shows.
 const EXCERPT_WORDS: usize = 8;
 
-/// How many words a hotspot's `complex:` list names. A longer list is a
+/// How many names a hotspot's `complex:` list prints. A longer list is a
 /// transcript of the sentence's polysyllables rather than a rewriting
 /// instruction, and it is most of what the report costs: scoring
 /// `docs/research/fog-vs-flesch-kincaid.md` at target 10 prints 1724
 /// bytes uncapped against 1227 capped.
-const COMPLEX_WORDS: usize = 3;
+const COMPLEX_NAMES: usize = 3;
 
 /// Renders an analysis as the report text, one trailing newline per line.
 ///
@@ -105,8 +105,8 @@ fn scored_text(sentences: &[Sentence], scored: &Scored, target: usize, with_line
     out
 }
 
-/// The refusal: the word count always, the complex words when any exist
-/// and the limit allows a second line. Each word is [`sanitise`]d on its
+/// The refusal: the word count always, the complex names when any exist
+/// and the limit allows a second line. Each name is [`sanitise`]d on its
 /// way out.
 ///
 /// Author: Claude Fable 5
@@ -122,7 +122,7 @@ fn refusal_text(refusal: &Refusal, limit: usize) -> String {
 }
 
 /// The `complex:` list a hotspot prints, from its deduplicated complex
-/// names: at most [`COMPLEX_WORDS`] of them, the ones with the most
+/// names: at most [`COMPLEX_NAMES`] of them, the ones with the most
 /// syllables, joined in document order with `…` appended when the cap
 /// hid something.
 ///
@@ -136,14 +136,14 @@ fn refusal_text(refusal: &Refusal, limit: usize) -> String {
 fn complex_list(unique: &[&str]) -> String {
     let mut kept: Vec<usize> = (0..unique.len()).collect();
     kept.sort_by_key(|&index| Reverse(name_syllables(unique[index])));
-    kept.truncate(COMPLEX_WORDS);
+    kept.truncate(COMPLEX_NAMES);
     kept.sort_unstable();
     let mut out = kept
         .iter()
         .map(|&index| sanitise(unique[index]))
         .collect::<Vec<String>>()
         .join(", ");
-    if unique.len() > COMPLEX_WORDS {
+    if unique.len() > COMPLEX_NAMES {
         out.push('…');
     }
     out
