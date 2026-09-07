@@ -31,7 +31,14 @@ How much a sentence raises the document's fog score: the drop in the score if th
 A sentence the report singles out, by contribution, as driving the document's fog score above the target. Only a document scoring over target has hotspots.
 
 **Excerpt**:
-The quoted snippet that identifies a hotspot sentence: its first ~8 words of extracted prose, one excerpt word per counted word, with a placeholder word shown as the construct it replaced, as written in the source (whitespace a construct carries collapses to single spaces, so that one word can span several space-separated parts). Markup that extraction removes never appears in it. The text between the outer quotes is opaque: it is not parseable by splitting on quote characters.
+The quoted snippet that identifies a hotspot sentence: its first ~8 words of extracted prose, one excerpt word per counted word, with a placeholder word shown as the construct it replaced, as written in the source (whitespace a construct carries collapses to single spaces, so that one word can span several space-separated parts). Markup that extraction removes never appears in it. What the collapsing leaves is sanitised. The text between the outer quotes is opaque: it is not parseable by splitting on quote characters.
+
+**Complex list**:
+The names printed after `complex:`, beside a hotspot's excerpt and on the refusal line under the floor. Each name is one complex remainder fragment, sanitised. Names print in document order, deduplicated case-insensitively, first spelling kept. A hotspot's list is capped at three names: the three with the most syllables, an earlier name winning a tie for the last slot, and a trailing `…` when the cap hid a name. A name is ranked on its hyphen-separated parts added together, so the whole compound counts. Complexity still turns on one part reaching three syllables on its own. The refusal's list is uncapped, and deduplicated across the whole document rather than within one sentence.
+_Avoid_: complex words (for the printed names)
+
+**Sanitising**:
+Replacing each Unicode control (`Cc`) or format (`Cf`) character with one U+FFFD (`�`), one replacement per character. It applies wherever the report quotes the document: the excerpt, a hotspot's complex list, and the refusal's complex list. A scored document cannot write escape sequences to the terminal, reorder a line with a bidi override, or hide names with zero-width characters.
 
 **Target**:
 The fog score threshold (default 10) that sets hotspot flagging and the exit code.
