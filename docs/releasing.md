@@ -21,8 +21,15 @@ None of this is in the repo, and all of it blocks the first release.
 
 1. Make sure the GitLab pipeline is green on the commit you are about to tag. The generated
    GitHub workflow runs no tests, so nothing downstream checks this for you.
-2. Bump `version` in `Cargo.toml`, run `cargo build` so `Cargo.lock` follows, and commit both.
-3. Tag with a `v`-prefixed plain semver tag and push it. Push mirroring carries the tag to GitHub,
+2. Check that `README.md` describes what is actually published. Until v0.1.0 ships, its install
+   section opens with a line saying nothing is published yet; delete that line as part of this
+   release. `cargo publish` attaches the root README to the crate, so crates.io renders it, and
+   the GitHub mirror's landing page shows the same file. Skip this and the release publishes a
+   README that says nothing is published.
+3. Bump `version` in `Cargo.toml`, run `cargo build` so `Cargo.lock` follows, and commit both,
+   along with any README change from the step above, so the commit you tag carries a README
+   that is true.
+4. Tag with a `v`-prefixed plain semver tag and push it. Push mirroring carries the tag to GitHub,
    where the tag triggers the release workflow. A tag with a prerelease suffix, `v0.2.0-rc.1`,
    also matches the glob and publishes as a GitHub prerelease. The project runs no prerelease
    channel, so do not push one.
@@ -30,10 +37,10 @@ None of this is in the repo, and all of it blocks the first release.
    git tag v0.1.0
    git push origin v0.1.0
    ```
-4. Watch the run at `github.com/enjunear/gunfog/actions`. It builds the five target triples,
+5. Watch the run at `github.com/enjunear/gunfog/actions`. It builds the five target triples,
    uploads them to a GitHub Release, pushes the Homebrew formula to the tap, and publishes to npm.
    There is no `CHANGELOG.md`, so the release body is whatever dist generates from the tag.
-5. Publish to crates.io by hand. dist has no crates.io job, so nothing above does this:
+6. Publish to crates.io by hand. dist has no crates.io job, so nothing above does this:
    ```sh
    cargo publish --locked
    ```
